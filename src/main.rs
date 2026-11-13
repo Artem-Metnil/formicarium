@@ -1,6 +1,7 @@
 mod simulation;
 mod field;
 mod ant;
+mod brain;
 
 use macroquad::prelude::*;
 use egui_macroquad::{egui};
@@ -87,7 +88,7 @@ async fn main() {
                             is_stopped = !is_stopped;
                             simulation.set_paused(is_stopped);
                         }
-                        let interval_changed = ui.add_sized([size, 0.0], egui::Slider::new(&mut interval_ms, 200..=0).show_value(false)
+                        let interval_changed = ui.add_sized([size, 0.0], egui::Slider::new(&mut interval_ms, 100..=0).show_value(false)
                             .show_value(true)
                             .text("interval"))
                             .changed();
