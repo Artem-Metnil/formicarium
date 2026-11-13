@@ -1,35 +1,59 @@
 mod simulation;
+mod field;
+mod ant;
 
 use macroquad::prelude::*;
 use egui_macroquad::{egui};
 use crate::simulation::SimulationWorker;
 
+const WINDOW_WIDTH: i32 = 1280;
+const WINDOW_HEIGHT: i32 = 720;
 const GUI_WINDOW_WIDTH: f32 = 284.0;
+const FIELD_OBJECT_SIZE: f32 = 8.0;
+
+const FIELD_WIDTH: usize = ((WINDOW_WIDTH as f32 - GUI_WINDOW_WIDTH) / FIELD_OBJECT_SIZE) as usize;
+const FIELD_HEIGHT: usize = (WINDOW_HEIGHT as f32 / FIELD_OBJECT_SIZE) as usize;
+
 
 
 fn window_conf() -> Conf {
     Conf {
         window_title: String::from("Formicarium"),
-        window_width: 1280,
-        window_height: 720,
+        window_width: WINDOW_WIDTH,
+        window_height: WINDOW_HEIGHT,
         window_resizable: false,
         high_dpi: true,
         ..Default::default()
     }
 }
+
 #[macroquad::main(window_conf)]
 async fn main() {
 
-    let mut simulation = SimulationWorker::new();
+    let mut simulation = SimulationWorker::new(FIELD_WIDTH, FIELD_HEIGHT);
 
     let mut theme_initialized = false;
     let mut interval_ms = 0;
-    let mut is_stopped = false;
+    let mut is_stopped = true;
 
     loop {
         let snapshot = simulation.get_snapshot();
 
-        clear_background(GRAY);
+        clear_background(WHITE);
+
+        let mut ant_count = 0;
+        for ant in snapshot.ants {
+            ant_count += 1;
+            let pos_x = ant.x as f32 * FIELD_OBJECT_SIZE;
+            let pos_y = ant.y as f32 * FIELD_OBJECT_SIZE;
+            draw_rectangle(pos_x,pos_y,FIELD_OBJECT_SIZE,FIELD_OBJECT_SIZE, GRAY);
+            draw_rectangle(pos_x + 1.0,
+                           pos_y + 1.0,
+                           FIELD_OBJECT_SIZE - 2.0,
+                           FIELD_OBJECT_SIZE - 2.0,
+                           GREEN);
+        }
+
         egui_macroquad::ui(|ctx| {
 
             if !theme_initialized {
@@ -52,7 +76,7 @@ async fn main() {
                        ui.label("Main");
                         ui.label(format!("steps: {}", snapshot.ticks));
                         ui.label(format!("(interval {}, speed {} ticks/sec)", interval_ms, snapshot.actual_ticks_per_second));
-                        ui.label("Object total: 0");
+                        ui.label(format!("Object total: {}", ant_count));
                     });
 
                     ui.group(|ui| {
@@ -63,7 +87,7 @@ async fn main() {
                             is_stopped = !is_stopped;
                             simulation.set_paused(is_stopped);
                         }
-                        let interval_changed = ui.add_sized([size, 0.0], egui::Slider::new(&mut interval_ms, 100..=0).show_value(false)
+                        let interval_changed = ui.add_sized([size, 0.0], egui::Slider::new(&mut interval_ms, 200..=0).show_value(false)
                             .show_value(true)
                             .text("interval"))
                             .changed();

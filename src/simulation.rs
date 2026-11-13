@@ -2,11 +2,14 @@ use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
+use crate::ant::Ant;
+use crate::field::Field;
 
 #[derive(Clone, Default)]
 pub struct SimulationSnapshot {
     pub ticks: u64,
-    pub actual_ticks_per_second: u32
+    pub actual_ticks_per_second: u32,
+    pub ants: Vec<Ant>
 }
 
 pub struct SimulationWorker {
@@ -18,8 +21,9 @@ pub struct SimulationWorker {
 }
 
 impl SimulationWorker {
-    pub fn new() -> Self {
-        let is_paused = Arc::new(AtomicBool::new(false));
+    pub fn new(width : usize, height: usize) -> Self {
+
+        let is_paused = Arc::new(AtomicBool::new(true));
         let interval_ms = Arc::new(AtomicU64::new(0));
         let wants_snapshot = Arc::new(AtomicBool::new(false));
         let snapshot = Arc::new(Mutex::new(SimulationSnapshot::default()));
@@ -30,6 +34,7 @@ impl SimulationWorker {
         let thread_snapshot = Arc::clone(&snapshot);
 
         let handle = thread::spawn(move || {
+            let mut field: Field = Field::new(width, height);
             let mut steps: u64 = 0;
 
             let mut last_sec_time = Instant::now();
@@ -43,6 +48,7 @@ impl SimulationWorker {
                     continue;
                 }
 
+                field.tick();
                 steps += 1;
                 ticks_in_current_second += 1;
 
@@ -56,6 +62,7 @@ impl SimulationWorker {
                     if let Ok(mut state) = thread_snapshot.lock() {
                         state.ticks = steps;
                         state.actual_ticks_per_second = actual_tps;
+                        state.ants = field.get_ants().to_vec();
                     }
                 }
 
