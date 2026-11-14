@@ -20,7 +20,7 @@ impl NeuronType {
 
 #[derive(Clone)]
 pub struct Brain {
-    tag: usize,
+    pub tag: usize,
 
     w1: [[f32; 7]; 8],
     b1: [f32; 8],

@@ -1,5 +1,6 @@
 use rand::Rng;
 use crate::brain::Brain;
+use crate::FIELD_HEIGHT;
 
 const MAX_LIFE_TIME: u32 = 200;
 pub const MAX_ENERGY: f32 = 500.0;
@@ -119,4 +120,5 @@ impl Ant {
             brain: child_brain
         }
     }
+    pub fn get_tag(&self) -> usize { self.brain.tag }
 }

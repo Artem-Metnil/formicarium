@@ -47,12 +47,18 @@ async fn main() {
             ant_count += 1;
             let pos_x = ant.x as f32 * FIELD_OBJECT_SIZE;
             let pos_y = ant.y as f32 * FIELD_OBJECT_SIZE;
+
+            let tag = ant.get_tag();
+            let r = (tag & 0xFF) as u8;
+            let g = (tag >> 8) as u8;
+            let b = (tag >> 16) as u8;
+            let color = Color::from_rgba(r, g, b, 255);
             draw_rectangle(pos_x,pos_y,FIELD_OBJECT_SIZE,FIELD_OBJECT_SIZE, GRAY);
             draw_rectangle(pos_x + 1.0,
                            pos_y + 1.0,
                            FIELD_OBJECT_SIZE - 2.0,
                            FIELD_OBJECT_SIZE - 2.0,
-                           GREEN);
+                           color);
         }
 
         egui_macroquad::ui(|ctx| {
