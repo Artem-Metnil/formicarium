@@ -137,4 +137,7 @@ impl Ant {
         }
     }
     pub fn get_tag(&self) -> usize { self.brain.tag }
+    pub fn is_relative(&self, other_tag: usize) -> bool {
+        self.brain.is_relative(other_tag)
+    }
 }

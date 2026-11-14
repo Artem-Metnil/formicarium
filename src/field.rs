@@ -131,27 +131,35 @@ impl Field {
         brain_input[IN_ENERGY] = self.ants[ant_index].energy / MAX_ENERGY;
         brain_input[IN_DIRECTION] = self.ants[ant_index].direction as f32 / 7.0;
         brain_input[IN_HEIGHT] = self.ants[ant_index].y as f32 / FIELD_HEIGHT as f32;
-        brain_input[IN_EYE] = self.see_forward(ant_index);
-        brain_input[IN_EYE_RELATIVE] = 0.0;
+        let (eye, relative) = self.see_forward(ant_index);
+        brain_input[IN_EYE] = eye;
+        brain_input[IN_EYE_RELATIVE] = relative;
         brain_input[IN_SEX] = 0.0;
         brain_input[IN_MEMORY] = self.ants[ant_index].memory;
         brain_input
     }
 
-    fn see_forward(&self, ant_index : usize) -> f32 {
+    fn see_forward(&self, ant_index : usize) -> (f32, f32) {
         let ant = &self.ants[ant_index];
         let (dx, dy) = DIRECTIONS[ant.direction as usize];
 
         let x = ant.x as isize + dx;
         let y = ant.y as isize + dy;
         if x < 0 || x >= self.width as isize || y < 0 || y >= self.height as isize {
-            return -1.0;
+            return (-1.0, 0.0);
         }
 
         let idx = x as usize + y as usize * self.width;
         match self.all_cells[idx] {
-            Object::Null => 0.0,
-            Object::Ant {..} => 1.0,
+            Object::Null => (0.0, 0.0),
+            Object::Ant { id } => {
+                let is_relative = self.ants[ant_index].is_relative(self.ants[id].get_tag());
+                if is_relative {
+                    (1.0, 1.0)
+                } else {
+                    (1.0, -1.0)
+                }
+            },
         }
     }
 
@@ -215,10 +223,12 @@ impl Field {
         let idx = x + y * self.width;
 
         if let Object::Ant { id: enemy_index } = self.all_cells[idx] {
-            let energy = self.ants[enemy_index].energy;
-            self.ants[enemy_index].energy = 0f32;
-            self.ants[ant_index].hunt_energy(energy);
-            self.ants[ant_index].memory = 1.0;
+            if self.ants[enemy_index].is_alive() {
+                let energy = self.ants[enemy_index].energy;
+                self.ants[enemy_index].energy = 0f32;
+                self.ants[ant_index].hunt_energy(energy);
+                self.ants[ant_index].memory = 1.0;
+            }
         }
     }
 }
