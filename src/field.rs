@@ -1,6 +1,6 @@
 use std::vec::Vec;
 use rand::Rng;
-use crate::ant::{Ant, ENERGY_FOR_REPRODUCE, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY};
+use crate::ant::{Ant, ReproductionType, ENERGY_FOR_REPRODUCE, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY};
 use crate::FIELD_HEIGHT;
 
 pub const DIRECTIONS: [(isize, isize); 8] = [
@@ -129,7 +129,7 @@ impl Field {
     fn compute_input(&self, ant_index : usize) -> [f32; 7] {
         let mut brain_input = [0.0f32; 7];
         brain_input[IN_ENERGY] = self.ants[ant_index].energy / MAX_ENERGY;
-        brain_input[IN_DIRECTION] = self.ants[ant_index].direction as f32 / 7.0;
+        brain_input[IN_DIRECTION] = self.ants[ant_index].direction as f32 / 8.0;
         brain_input[IN_HEIGHT] = self.ants[ant_index].y as f32 / FIELD_HEIGHT as f32;
         let (eye, relative) = self.see_forward(ant_index);
         brain_input[IN_EYE] = eye;
@@ -186,27 +186,68 @@ impl Field {
         let pos_x = self.ants[ant_index].x;
         let pos_y = self.ants[ant_index].y;
 
-        for &(dx, dy) in DIRECTIONS.iter() {
-            let target_x = pos_x as isize + dx;
-            let target_y = pos_y as isize + dy;
-            if target_x < 0 || target_x >= self.width as isize || target_y < 0 || target_y >= self.height as isize {
-                continue;
+        if self.ants[ant_index].reproduction_type == ReproductionType::Budding {
+            for &(dx, dy) in DIRECTIONS.iter() {
+                let target_x = pos_x as isize + dx;
+                let target_y = pos_y as isize + dy;
+                if target_x < 0 || target_x >= self.width as isize || target_y < 0 || target_y >= self.height as isize {
+                    continue;
+                }
+
+                let target_x = target_x as usize;
+                let target_y = target_y as usize;
+                let idx = target_x + target_y * self.width;
+
+                if let Object::Null = self.all_cells[idx] {
+                    self.ants[ant_index].energy -= ENERGY_FOR_REPRODUCE;
+                    let energy = self.ants[ant_index].energy * 0.25;
+                    self.ants[ant_index].energy -= energy;
+                    let child = self.ants[ant_index].divide_budding(target_x, target_y, energy);
+                    let new_id = self.ants.len();
+                    self.ants.push(child);
+                    self.all_cells[idx] = Object::Ant { id: new_id };
+                    return;
+                }
+            }
+        } else if self.ants[ant_index].reproduction_type == ReproductionType::Mitosis {
+            let self_x = self.ants[ant_index].x;
+            let self_y = self.ants[ant_index].y;
+
+            let mut first_cell: Option<(usize, usize, usize)> = None;
+            let mut second_cell: Option<(usize, usize, usize)> = None;
+
+            for &(dx, dy) in DIRECTIONS.iter() {
+                let target_x = self_x as isize + dx;
+                let target_y = self_y as isize + dy;
+
+                if target_x < 0 || target_x >= self.width as isize || target_y < 0 || target_y >= self.height as isize {
+                    continue;
+                }
+                let target_x = target_x as usize;
+                let target_y = target_y as usize;
+                let idx = target_x + target_y * self.width;
+                if let Object::Null = self.all_cells[idx] {
+                    if first_cell.is_none() {
+                        first_cell = Some((idx, target_x, target_y));
+                    } else if second_cell.is_none() {
+                        second_cell = Some((idx, target_x, target_y));
+                    }
+                }
             }
 
-            let target_x = target_x as usize;
-            let target_y = target_y as usize;
-            let idx = target_x + target_y * self.width;
+            if let (Some(c1), Some(c2)) = (first_cell, second_cell) {
+                let energy = self.ants[ant_index].energy * 0.5;
+                self.ants[ant_index].energy = 0f32;
 
-            if let Object::Null = self.all_cells[idx] {
-                self.ants[ant_index].energy -= ENERGY_FOR_REPRODUCE;
-                let energy = self.ants[ant_index].energy / 2.0;
-                self.ants[ant_index].energy -= energy;
-                let child = self.ants[ant_index].divide(target_x, target_y, energy);
+                let child1 = self.ants[ant_index].divide_mitosis(c1.1, c1.2, energy);
+                let child2 = self.ants[ant_index].divide_mitosis(c2.1, c2.2, energy);
 
                 let new_id = self.ants.len();
-                self.ants.push(child);
-                self.all_cells[idx] = Object::Ant { id: new_id };
-                return;
+                self.ants.push(child1);
+                self.all_cells[c1.0] = Object::Ant { id: new_id };
+                let new_id = self.ants.len();
+                self.ants.push(child2);
+                self.all_cells[c2.0] = Object::Ant { id: new_id };
             }
         }
     }

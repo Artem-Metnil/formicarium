@@ -5,7 +5,7 @@ mod brain;
 
 use macroquad::prelude::*;
 use egui_macroquad::{egui, ui};
-use crate::ant::MAX_ENERGY;
+use crate::ant::{ReproductionType, MAX_ENERGY};
 use crate::simulation::SimulationWorker;
 
 const WINDOW_WIDTH: i32 = 1280;
@@ -20,7 +20,8 @@ const FIELD_HEIGHT: usize = (WINDOW_HEIGHT as f32 / FIELD_OBJECT_SIZE) as usize;
 enum RenderType {
     Natural,
     Predators,
-    Energy
+    Energy,
+    Reproduction,
 }
 
 
@@ -58,6 +59,13 @@ async fn main() {
             let pos_y = ant.y as f32 * FIELD_OBJECT_SIZE;
 
             let color: Color = match render_mode {
+                RenderType::Reproduction => {
+                    match ant.reproduction_type {
+                        ReproductionType::Budding => { GREEN }
+                        ReproductionType::Mitosis => { BLUE }
+                        ReproductionType::Meiosis => { RED }
+                    }
+                },
                 RenderType::Predators => {
                     if ant.score_photosynthesis < ant.score_predators {
                         RED
@@ -135,6 +143,7 @@ async fn main() {
                         ui.radio_value(&mut render_mode, RenderType::Natural, "Natural");
                         ui.radio_value(&mut render_mode, RenderType::Predators, "Predators");
                         ui.radio_value(&mut render_mode, RenderType::Energy, "Energy");
+                        ui.radio_value(&mut render_mode, RenderType::Reproduction, "Reproduction");
                     });
                 });
         });

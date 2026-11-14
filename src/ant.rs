@@ -23,6 +23,13 @@ const OUT_ATTACK: usize = 4;
 const OUT_REPRODUCE: usize = 5;
 
 
+#[derive(PartialEq, Clone, Copy)]
+pub enum ReproductionType {
+    Budding,
+    Mitosis,
+    Meiosis,
+}
+
 #[derive(Clone)]
 pub struct Ant {
     pub x: usize,
@@ -40,6 +47,7 @@ pub struct Ant {
     pub score_photosynthesis: f32,
     pub score_predators: f32,
 
+    pub reproduction_type: ReproductionType,
     brain: Brain
 }
 
@@ -60,6 +68,7 @@ impl Ant {
             want_photosynthesis: false,
             score_photosynthesis: 0.0,
             score_predators: 0.0,
+            reproduction_type: ReproductionType::Budding,
             brain: Brain::new()
         }
     }
@@ -109,18 +118,11 @@ impl Ant {
         self.energy > 0.0 && self.age <= MAX_LIFE_TIME
     }
 
-    pub fn divide(&self, x: usize, y: usize, energy: f32) -> Self {
+    pub fn divide_budding(&self, x: usize, y: usize, energy: f32) -> Self {
         let mut rng = rand::thread_rng();
-        let mut child_brain = self.brain.clone();
+        let child_brain = self.brain.clone();
 
-        if rng.gen_bool(0.20) {
-            let n = rng.gen_range(1..7);
-            for _ in 0..n {
-                child_brain.mutate();
-            }
-        }
-
-        Self {
+        let mut child = Self {
             x,
             y,
             energy,
@@ -133,11 +135,63 @@ impl Ant {
             want_photosynthesis: false,
             score_photosynthesis: 0.0,
             score_predators: 0.0,
+            reproduction_type: self.reproduction_type,
             brain: child_brain
+        };
+
+        if rng.gen_bool(0.20) {
+            child.mutate(&mut rng); // <--- ТЕПЕРЬ ВЫЗЫВАЕТСЯ ПРАВИЛЬНЫЙ МЕТОД
         }
+
+        child
     }
+
+    pub fn divide_mitosis(&self, x: usize, y: usize, energy: f32) -> Self {
+        let mut rng = rand::thread_rng();
+        let child_brain = self.brain.clone();
+        let mut child = Self {
+            x,
+            y,
+            energy,
+            direction: 0,
+            memory: 0.0,
+            age: 0,
+            want_attack: false,
+            want_move: false,
+            want_reproduce: false,
+            want_photosynthesis: false,
+            score_photosynthesis: 0.0,
+            score_predators: 0.0,
+            reproduction_type: self.reproduction_type,
+            brain: child_brain
+        };
+
+        if rng.gen_bool(0.05) {
+            child.mutate(&mut rng);
+        }
+
+        child
+    }
+
     pub fn get_tag(&self) -> usize { self.brain.tag }
     pub fn is_relative(&self, other_tag: usize) -> bool {
         self.brain.is_relative(other_tag)
+    }
+
+    fn mutate(&mut self, rng: &mut impl Rng) {
+        if rng.gen_bool(0.05) {
+            self.reproduction_type = match self.reproduction_type {
+                ReproductionType::Budding => ReproductionType::Mitosis,
+                ReproductionType::Mitosis => ReproductionType::Budding,
+                ReproductionType::Meiosis => ReproductionType::Budding,
+            };
+            self.brain.tag ^= 1usize << rng.gen_range(0..usize::BITS);
+        } else {
+            let n = rng.gen_range(1..7);
+            for _ in 0..n {
+                self.brain.mutate();
+            }
+        }
+
     }
 }
