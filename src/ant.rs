@@ -4,7 +4,7 @@ use crate::FIELD_HEIGHT;
 
 const MAX_LIFE_TIME: u32 = 200;
 pub const MAX_ENERGY: f32 = 500.0;
-pub const MIN_ENERGY_FOR_REPRODUCE: f32 = 50.0;
+pub const ENERGY_FOR_REPRODUCE: f32 = 50.0;
 const PHOTOSYNTHESIS_ENERGY: f32 = 5.0;
 
 pub const IN_ENERGY: usize = 0;
@@ -37,6 +37,9 @@ pub struct Ant {
     pub want_photosynthesis: bool,
     pub want_reproduce: bool,
 
+    pub score_photosynthesis: f32,
+    pub score_predators: f32,
+
     brain: Brain
 }
 
@@ -55,6 +58,8 @@ impl Ant {
             want_move: false,
             want_reproduce: false,
             want_photosynthesis: false,
+            score_photosynthesis: 0.0,
+            score_predators: 0.0,
             brain: Brain::new()
         }
     }
@@ -86,6 +91,15 @@ impl Ant {
 
     pub fn photosynthesis(&mut self) {
         self.energy += PHOTOSYNTHESIS_ENERGY;
+        self.score_photosynthesis += PHOTOSYNTHESIS_ENERGY;
+        if self.energy > MAX_ENERGY {
+            self.energy = MAX_ENERGY;
+        }
+    }
+
+    pub fn hunt_energy(&mut self, energy: f32) {
+        self.energy += energy;
+        self.score_predators += energy;
         if self.energy > MAX_ENERGY {
             self.energy = MAX_ENERGY;
         }
@@ -117,6 +131,8 @@ impl Ant {
             want_move: false,
             want_reproduce: false,
             want_photosynthesis: false,
+            score_photosynthesis: 0.0,
+            score_predators: 0.0,
             brain: child_brain
         }
     }

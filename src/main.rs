@@ -4,7 +4,8 @@ mod ant;
 mod brain;
 
 use macroquad::prelude::*;
-use egui_macroquad::{egui};
+use egui_macroquad::{egui, ui};
+use crate::ant::MAX_ENERGY;
 use crate::simulation::SimulationWorker;
 
 const WINDOW_WIDTH: i32 = 1280;
@@ -15,6 +16,12 @@ const FIELD_OBJECT_SIZE: f32 = 8.0;
 const FIELD_WIDTH: usize = ((WINDOW_WIDTH as f32 - GUI_WINDOW_WIDTH) / FIELD_OBJECT_SIZE) as usize;
 const FIELD_HEIGHT: usize = (WINDOW_HEIGHT as f32 / FIELD_OBJECT_SIZE) as usize;
 
+#[derive(PartialEq, Eq)]
+enum RenderType {
+    Natural,
+    Predators,
+    Energy
+}
 
 
 fn window_conf() -> Conf {
@@ -36,6 +43,8 @@ async fn main() {
     let mut theme_initialized = false;
     let mut interval_ms = 0;
     let mut is_stopped = true;
+    let mut render_mode = RenderType::Natural;
+
 
     loop {
         let snapshot = simulation.get_snapshot();
@@ -48,11 +57,28 @@ async fn main() {
             let pos_x = ant.x as f32 * FIELD_OBJECT_SIZE;
             let pos_y = ant.y as f32 * FIELD_OBJECT_SIZE;
 
-            let tag = ant.get_tag();
-            let r = (tag & 0xFF) as u8;
-            let g = (tag >> 8) as u8;
-            let b = (tag >> 16) as u8;
-            let color = Color::from_rgba(r, g, b, 255);
+            let color: Color = match render_mode {
+                RenderType::Predators => {
+                    if ant.score_photosynthesis < ant.score_predators {
+                        RED
+                    } else if ant.score_predators < ant.score_photosynthesis {
+                        GREEN
+                    } else {
+                        LIGHTGRAY
+                    }
+                }
+                RenderType::Energy => {
+                    let e = ant.energy / MAX_ENERGY;
+                    Color::new(1.0, e, 0.0, 1.0)
+                }
+                _ => {
+                    let tag = ant.get_tag();
+                    let r = (tag & 0xFF) as u8;
+                    let g = (tag >> 8) as u8;
+                    let b = (tag >> 16) as u8;
+                    Color::from_rgba(r, g, b, 255)
+                }
+            };
             draw_rectangle(pos_x,pos_y,FIELD_OBJECT_SIZE,FIELD_OBJECT_SIZE, GRAY);
             draw_rectangle(pos_x + 1.0,
                            pos_y + 1.0,
@@ -101,6 +127,14 @@ async fn main() {
                         if interval_changed {
                             simulation.set_interval(interval_ms);
                         }
+                    });
+
+                    ui.group(|ui| {
+                       ui.set_width(ui.available_width());
+                        ui.label("Render");
+                        ui.radio_value(&mut render_mode, RenderType::Natural, "Natural");
+                        ui.radio_value(&mut render_mode, RenderType::Predators, "Predators");
+                        ui.radio_value(&mut render_mode, RenderType::Energy, "Energy");
                     });
                 });
         });

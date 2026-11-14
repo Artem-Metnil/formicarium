@@ -1,6 +1,6 @@
 use std::vec::Vec;
 use rand::Rng;
-use crate::ant::{Ant, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY, MIN_ENERGY_FOR_REPRODUCE};
+use crate::ant::{Ant, ENERGY_FOR_REPRODUCE, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY};
 use crate::FIELD_HEIGHT;
 
 pub const DIRECTIONS: [(isize, isize); 8] = [
@@ -74,7 +74,7 @@ impl Field {
             }
 
             if self.ants[i].want_attack {
-                // ATTACK
+                self.try_hunt(i);
             } else if self.ants[i].want_move {
                 self.move_ant(i);
                 self.ants[i].energy -= 1.0;
@@ -171,7 +171,7 @@ impl Field {
     }
 
     fn try_reproduce(&mut self, ant_index : usize) {
-        if self.ants[ant_index].energy < MIN_ENERGY_FOR_REPRODUCE {
+        if self.ants[ant_index].energy < ENERGY_FOR_REPRODUCE {
             return;
         }
 
@@ -190,6 +190,7 @@ impl Field {
             let idx = target_x + target_y * self.width;
 
             if let Object::Null = self.all_cells[idx] {
+                self.ants[ant_index].energy -= ENERGY_FOR_REPRODUCE;
                 let energy = self.ants[ant_index].energy / 2.0;
                 self.ants[ant_index].energy -= energy;
                 let child = self.ants[ant_index].divide(target_x, target_y, energy);
@@ -199,6 +200,25 @@ impl Field {
                 self.all_cells[idx] = Object::Ant { id: new_id };
                 return;
             }
+        }
+    }
+
+    fn try_hunt(&mut self, ant_index : usize) {
+        let (dx, dy) = DIRECTIONS[self.ants[ant_index].direction as usize];
+        let x = self.ants[ant_index].x as isize + dx;
+        let y = self.ants[ant_index].y as isize + dy;
+        if x < 0 || x >= self.width as isize || y < 0 || y >= self.height as isize {
+            return;
+        }
+        let x = x as usize;
+        let y = y as usize;
+        let idx = x + y * self.width;
+
+        if let Object::Ant { id: enemy_index } = self.all_cells[idx] {
+            let energy = self.ants[enemy_index].energy;
+            self.ants[enemy_index].energy = 0f32;
+            self.ants[ant_index].hunt_energy(energy);
+            self.ants[ant_index].memory = 1.0;
         }
     }
 }
