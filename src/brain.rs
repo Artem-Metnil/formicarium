@@ -20,7 +20,7 @@ impl NeuronType {
 
 #[derive(Clone)]
 pub struct Brain {
-    pub tag: usize,
+    tag: usize,
 
     w1: [[f32; 7]; 8],
     b1: [f32; 8],
@@ -47,13 +47,6 @@ impl Brain {
     pub fn new() -> Self {
         let mut rng = rand::thread_rng();
 
-        let random_neuron_type = |rng: &mut rand::rngs::ThreadRng| {
-            match rng.gen_range(0..10) {
-                1..=2 => NeuronType::RadialBasis,
-                _ => NeuronType::Basic,
-            }
-        };
-
         fn gen_weights<const R: usize, const C: usize>(rng: &mut impl Rng) -> [[f32; C]; R] {
             std::array::from_fn(|_| std::array::from_fn(|_| {
                 if rng.gen_bool(0.5) { rng.gen_range(-1.0..1.0) } else { 0.0f32 }
@@ -61,23 +54,23 @@ impl Brain {
         }
 
         Self {
-            tag: rng.gen_range(0..=usize::MAX),
+            tag: rng.r#gen::<usize>(),
 
             w1: gen_weights(&mut rng),
             b1: std::array::from_fn(|_| rng.gen_range(-0.5..0.5)),
-            neuron_type_w1: std::array::from_fn(|_| random_neuron_type(&mut rng)),
+            neuron_type_w1: std::array::from_fn(|_| mutate_random_neuron_type(&mut rng)),
 
             w2: gen_weights(&mut rng),
             b2: std::array::from_fn(|_| rng.gen_range(-0.5..0.5)),
-            neuron_type_w2: std::array::from_fn(|_| random_neuron_type(&mut rng)),
+            neuron_type_w2: std::array::from_fn(|_| mutate_random_neuron_type(&mut rng)),
 
             w3: gen_weights(&mut rng),
             b3: std::array::from_fn(|_| rng.gen_range(-0.5..0.5)),
-            neuron_type_w3: std::array::from_fn(|_| random_neuron_type(&mut rng)),
+            neuron_type_w3: std::array::from_fn(|_| mutate_random_neuron_type(&mut rng)),
 
             w4: gen_weights(&mut rng),
             b4: std::array::from_fn(|_| rng.gen_range(-0.5..0.5)),
-            neuron_type_w4: std::array::from_fn(|_| random_neuron_type(&mut rng)),
+            neuron_type_w4: std::array::from_fn(|_| mutate_random_neuron_type(&mut rng)),
 
             w5: gen_weights(&mut rng),
             b5: std::array::from_fn(|_| rng.gen_range(-0.5..0.5)),
@@ -136,5 +129,64 @@ impl Brain {
     pub fn is_relative(&self, tag : usize) -> bool {
         let diff = self.tag ^ tag;
         diff.count_ones() < 10
+    }
+
+    pub fn mutate(&mut self) {
+        let mut rng = rand::thread_rng();
+        self.tag ^= 1usize << rng.gen_range(0..usize::BITS);
+        match rng.gen_range(0..5) {
+            0 => mutate_neuron(&mut self.w1, &mut self.b1, &mut self.neuron_type_w1, &mut rng),
+            1 => mutate_neuron(&mut self.w2, &mut self.b2, &mut self.neuron_type_w2, &mut rng),
+            2 => mutate_neuron(&mut self.w3, &mut self.b3, &mut self.neuron_type_w3, &mut rng),
+            3 => mutate_neuron(&mut self.w4, &mut self.b4, &mut self.neuron_type_w4, &mut rng),
+            _ => mutate_neuron(&mut self.w5, &mut self.b5, &mut self.neuron_type_w5, &mut rng),
+        }
+    }
+}
+
+fn mutate_neuron<const R: usize, const C: usize>(
+    w: &mut[[f32; C]; R],
+    b: &mut[f32; R],
+    nt: &mut[NeuronType; R],
+    rng: &mut impl Rng) {
+    let idx = rng.gen_range(0..R);
+    let roll: f32 = rng.gen_range(0.0..1.0);
+
+    if roll < 0.10 {
+        let node = rng.gen_range(0..C);
+        w[idx][node] = rng.gen_range(-1.0..1.0);
+        b[idx] = mutate_change_bias(b[idx], rng);
+        nt[idx] = match nt[idx] {
+            NeuronType::Output => NeuronType::Output,
+            _=> mutate_random_neuron_type(rng)
+        };
+    } else if roll < 0.12 {
+        b[idx] = 0.0;
+        for i in 0..C {
+            w[idx][i] = 0.0;
+        }
+    } else if roll < 0.40 {
+        b[idx] = mutate_change_bias(b[idx], rng);
+    } else if roll < 0.50 {
+        nt[idx] = match nt[idx] {
+            NeuronType::Output => NeuronType::Output,
+            _=> mutate_random_neuron_type(rng)
+        };
+    } else {
+        let node = rng.gen_range(0..C);
+        w[idx][node] = rng.gen_range(-1.0..1.0);
+    }
+}
+
+fn mutate_change_bias(b : f32, rng: &mut impl Rng) -> f32 {
+    let change: f32 = rng.gen_range(0.02..0.1);
+    let v = if rng.gen_bool(0.5) { b + change } else { b - change };
+    v.clamp(-2.0, 2.0)
+}
+
+fn mutate_random_neuron_type(rng: &mut impl Rng) -> NeuronType {
+    match rng.gen_range(0..10) {
+        1..=2 => NeuronType::RadialBasis,
+        _ => NeuronType::Basic,
     }
 }

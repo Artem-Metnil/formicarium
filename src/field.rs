@@ -1,7 +1,18 @@
 use std::vec::Vec;
 use rand::Rng;
-use crate::ant::{Ant, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY};
+use crate::ant::{Ant, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY, MIN_ENERGY_FOR_REPRODUCE};
 use crate::FIELD_HEIGHT;
+
+pub const DIRECTIONS: [(isize, isize); 8] = [
+    (0, -1), // 0: Вверх
+    (1, -1), // 1: Вправо-вверх
+    (1, 0),  // 2: Вправо
+    (1, 1),  // 3: Вправо-вниз
+    (0, 1),  // 4: Вниз
+    (-1, 1), // 5: Влево-вниз
+    (-1, 0), // 6: Влево
+    (-1, -1) // 7: Влево-вверх
+];
 
 #[derive(Clone)]
 enum Object {
@@ -54,12 +65,12 @@ impl Field {
 
         let ant_count = self.ants.len();
         for i in 0..ant_count {
-            if self.ants[i].energy <= 0f32 {
+            if !self.ants[i].is_alive() {
                 continue;
             }
 
             if self.ants[i].want_reproduce {
-                // REPRODUCE
+                self.try_reproduce(i);
             }
 
             if self.ants[i].want_attack {
@@ -74,10 +85,11 @@ impl Field {
 
         let mut i = 0;
         while i < self.ants.len() {
-            if self.ants[i].energy <= 0f32 {
+            if !self.ants[i].is_alive() {
                 self.kill_ant(i);
+            } else {
+                i += 1
             }
-            i += 1
         }
     }
 
@@ -86,7 +98,7 @@ impl Field {
     }
 
     fn move_ant(&mut self, ant_index : usize) {
-        let (dx, dy) = self.ants[ant_index].get_direction();
+        let (dx, dy) = DIRECTIONS[self.ants[ant_index].direction as usize];
 
         let old_x = self.ants[ant_index].x;
         let old_y = self.ants[ant_index].y;
@@ -117,7 +129,7 @@ impl Field {
     fn compute_input(&self, ant_index : usize) -> [f32; 7] {
         let mut brain_input = [0.0f32; 7];
         brain_input[IN_ENERGY] = self.ants[ant_index].energy / MAX_ENERGY;
-        brain_input[IN_DIRECTION] = self.ants[ant_index].direction as f32 / 8.0;
+        brain_input[IN_DIRECTION] = self.ants[ant_index].direction as f32 / 7.0;
         brain_input[IN_HEIGHT] = self.ants[ant_index].y as f32 / FIELD_HEIGHT as f32;
         brain_input[IN_EYE] = self.see_forward(ant_index);
         brain_input[IN_EYE_RELATIVE] = 0.0;
@@ -128,7 +140,7 @@ impl Field {
 
     fn see_forward(&self, ant_index : usize) -> f32 {
         let ant = &self.ants[ant_index];
-        let (dx, dy) = ant.get_direction();
+        let (dx, dy) = DIRECTIONS[ant.direction as usize];
 
         let x = ant.x as isize + dx;
         let y = ant.y as isize + dy;
@@ -156,5 +168,37 @@ impl Field {
         }
 
         self.ants.swap_remove(ant_index);
+    }
+
+    fn try_reproduce(&mut self, ant_index : usize) {
+        if self.ants[ant_index].energy < MIN_ENERGY_FOR_REPRODUCE {
+            return;
+        }
+
+        let pos_x = self.ants[ant_index].x;
+        let pos_y = self.ants[ant_index].y;
+
+        for &(dx, dy) in DIRECTIONS.iter() {
+            let target_x = pos_x as isize + dx;
+            let target_y = pos_y as isize + dy;
+            if target_x < 0 || target_x >= self.width as isize || target_y < 0 || target_y >= self.height as isize {
+                continue;
+            }
+
+            let target_x = target_x as usize;
+            let target_y = target_y as usize;
+            let idx = target_x + target_y * self.width;
+
+            if let Object::Null = self.all_cells[idx] {
+                let energy = self.ants[ant_index].energy / 2.0;
+                self.ants[ant_index].energy -= energy;
+                let child = self.ants[ant_index].divide(target_x, target_y, energy);
+
+                let new_id = self.ants.len();
+                self.ants.push(child);
+                self.all_cells[idx] = Object::Ant { id: new_id };
+                return;
+            }
+        }
     }
 }
