@@ -22,7 +22,7 @@ impl NeuronType {
 pub struct Brain {
     pub tag: usize,
 
-    w1: [[f32; 7]; 8],
+    w1: [[f32; 8]; 8],
     b1: [f32; 8],
     neuron_type_w1: [NeuronType; 8],
 
@@ -38,9 +38,9 @@ pub struct Brain {
     b4: [f32; 8],
     neuron_type_w4: [NeuronType; 8],
 
-    w5: [[f32; 8]; 6],
-    b5: [f32; 6],
-    neuron_type_w5: [NeuronType; 6],
+    w5: [[f32; 8]; 7],
+    b5: [f32; 7],
+    neuron_type_w5: [NeuronType; 7],
 }
 
 impl Brain {
@@ -78,11 +78,11 @@ impl Brain {
         }
     }
 
-    pub fn forward(&self, inputs: &[f32; 7]) -> [f32; 6] {
+    pub fn forward(&self, inputs: &[f32; 8]) -> [f32; 7] {
         let mut h1 = [0.0f32; 8];
         for i in 0..8 {
             let mut sum = self.b1[i];
-            for j in 0..7 {
+            for j in 0..8 {
                 sum += inputs[j] * self.w1[i][j];
             }
             h1[i] = self.neuron_type_w1[i].apply(sum);
@@ -115,8 +115,8 @@ impl Brain {
             h4[i] = self.neuron_type_w4[i].apply(sum);
         }
 
-        let mut outputs = [0.0f32; 6];
-        for i in 0..6 {
+        let mut outputs = [0.0f32; 7];
+        for i in 0..7 {
             let mut sum = self.b5[i];
             for j in 0..8 {
                 sum += h4[j] * self.w5[i][j];

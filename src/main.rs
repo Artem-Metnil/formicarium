@@ -10,7 +10,7 @@ use crate::simulation::SimulationWorker;
 
 const WINDOW_WIDTH: i32 = 1280;
 const WINDOW_HEIGHT: i32 = 720;
-const GUI_WINDOW_WIDTH: f32 = 284.0;
+const GUI_WINDOW_WIDTH: f32 = 280.0;
 const FIELD_OBJECT_SIZE: f32 = 8.0;
 
 const FIELD_WIDTH: usize = ((WINDOW_WIDTH as f32 - GUI_WINDOW_WIDTH) / FIELD_OBJECT_SIZE) as usize;
@@ -67,14 +67,20 @@ async fn main() {
                     }
                 },
                 RenderType::Predators => {
-                    if ant.score_photosynthesis < ant.score_predators {
+                    let is_photo = ant.score_photosynthesis > ant.score_herbivorous && ant.score_photosynthesis > ant.score_predators;
+                    let is_pred = ant.score_predators > ant.score_herbivorous && ant.score_predators > ant.score_photosynthesis;
+                    let is_herb = ant.score_herbivorous > ant.score_predators && ant.score_herbivorous > ant.score_photosynthesis;
+                    if is_photo {
+                        SKYBLUE
+                    } else if is_pred {
                         RED
-                    } else if ant.score_predators < ant.score_photosynthesis {
+                    } else if is_herb {
                         GREEN
                     } else {
-                        LIGHTGRAY
+                        GRAY
                     }
                 }
+
                 RenderType::Energy => {
                     let e = ant.energy / MAX_ENERGY;
                     Color::new(1.0, e, 0.0, 1.0)
@@ -118,6 +124,7 @@ async fn main() {
                         ui.label(format!("steps: {}", snapshot.ticks));
                         ui.label(format!("(interval {}, speed {} ticks/sec)", interval_ms, snapshot.actual_ticks_per_second));
                         ui.label(format!("Object total: {}", ant_count));
+                        ui.label(format!("Season: {}", snapshot.season));
                     });
 
                     ui.group(|ui| {

@@ -1,11 +1,12 @@
 use rand::Rng;
 use crate::brain::Brain;
-use crate::FIELD_HEIGHT;
 
-const MAX_LIFE_TIME: u32 = 200;
-pub const MAX_ENERGY: f32 = 500.0;
+const MAX_LIFE_TIME: u32 = 500;
+pub const MAX_ENERGY: f32 = 250.0;
 pub const ENERGY_FOR_REPRODUCE: f32 = 50.0;
-const PHOTOSYNTHESIS_ENERGY: f32 = 5.0;
+pub const ENERGY_FOR_HUNT: f32 = 10.0;
+pub const ENERGY_FOR_EAT: f32 = 5.0;
+const PHOTOSYNTHESIS_ENERGY: f32 = 1.0;
 
 pub const IN_ENERGY: usize = 0;
 pub const IN_DIRECTION: usize = 1;
@@ -13,7 +14,8 @@ pub const IN_HEIGHT: usize = 2;
 pub const IN_EYE: usize = 3;
 pub const IN_EYE_RELATIVE: usize = 4;
 pub const IN_SEX: usize = 5;
-pub const IN_MEMORY: usize = 6;
+pub const IN_DETRITUS: usize = 6;
+pub const IN_MEMORY: usize = 7;
 
 const OUT_ROTATE_LEFT: usize = 0;
 const OUT_ROTATE_RIGHT: usize = 1;
@@ -21,6 +23,7 @@ const OUT_MOVE: usize = 2;
 const OUT_PHOTOSYNTHESIS: usize = 3;
 const OUT_ATTACK: usize = 4;
 const OUT_REPRODUCE: usize = 5;
+const OUT_EAT: usize = 6;
 
 
 #[derive(PartialEq, Clone, Copy)]
@@ -43,9 +46,11 @@ pub struct Ant {
     pub want_move: bool,
     pub want_photosynthesis: bool,
     pub want_reproduce: bool,
+    pub want_eat: bool,
 
     pub score_photosynthesis: f32,
     pub score_predators: f32,
+    pub score_herbivorous: f32,
 
     pub reproduction_type: ReproductionType,
     brain: Brain
@@ -66,14 +71,16 @@ impl Ant {
             want_move: false,
             want_reproduce: false,
             want_photosynthesis: false,
+            want_eat: false,
             score_photosynthesis: 0.0,
             score_predators: 0.0,
+            score_herbivorous: 0.0,
             reproduction_type: ReproductionType::Budding,
             brain: Brain::new()
         }
     }
 
-    pub fn think(&mut self, input: &[f32; 7]) {
+    pub fn think(&mut self, input: &[f32; 8]) {
 
         let brain_outputs = self.brain.forward(&input);
 
@@ -94,13 +101,15 @@ impl Ant {
         self.want_move = brain_outputs[OUT_MOVE] > 0.5f32;
         self.want_photosynthesis = brain_outputs[OUT_PHOTOSYNTHESIS] > 0.5f32;
         self.want_reproduce = brain_outputs[OUT_REPRODUCE] > 0.5f32;
+        self.want_eat = brain_outputs[OUT_EAT] > 0.5f32;
         self.memory = 0.0;
         self.age += 1;
     }
 
-    pub fn photosynthesis(&mut self) {
-        self.energy += PHOTOSYNTHESIS_ENERGY;
-        self.score_photosynthesis += PHOTOSYNTHESIS_ENERGY;
+    pub fn photosynthesis(&mut self, multiply: f32) {
+        let energy = PHOTOSYNTHESIS_ENERGY * multiply;
+        self.energy += energy;
+        self.score_photosynthesis += energy;
         if self.energy > MAX_ENERGY {
             self.energy = MAX_ENERGY;
         }
@@ -114,8 +123,16 @@ impl Ant {
         }
     }
 
+    pub fn eat_energy(&mut self, energy: f32) {
+        self.energy += energy;
+        self.score_herbivorous += energy;
+        if self.energy > MAX_ENERGY {
+            self.energy = MAX_ENERGY;
+        }
+    }
+
     pub fn is_alive(&self) -> bool {
-        self.energy > 0.0 && self.age <= MAX_LIFE_TIME
+        self.energy > 0.0  && self.age < MAX_LIFE_TIME
     }
 
     pub fn divide_budding(&self, x: usize, y: usize, energy: f32) -> Self {
@@ -133,8 +150,10 @@ impl Ant {
             want_move: false,
             want_reproduce: false,
             want_photosynthesis: false,
+            want_eat: false,
             score_photosynthesis: 0.0,
             score_predators: 0.0,
+            score_herbivorous: 0.0,
             reproduction_type: self.reproduction_type,
             brain: child_brain
         };
@@ -160,8 +179,10 @@ impl Ant {
             want_move: false,
             want_reproduce: false,
             want_photosynthesis: false,
+            want_eat: false,
             score_photosynthesis: 0.0,
             score_predators: 0.0,
+            score_herbivorous: 0.0,
             reproduction_type: self.reproduction_type,
             brain: child_brain
         };

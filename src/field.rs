@@ -1,7 +1,9 @@
 use std::vec::Vec;
 use rand::Rng;
-use crate::ant::{Ant, ReproductionType, ENERGY_FOR_REPRODUCE, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY};
+use crate::ant::{Ant, ReproductionType, ENERGY_FOR_REPRODUCE, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY, ENERGY_FOR_HUNT, IN_DETRITUS, ENERGY_FOR_EAT};
 use crate::FIELD_HEIGHT;
+
+const SEASON_DURATION: usize = 1000;
 
 pub const DIRECTIONS: [(isize, isize); 8] = [
     (0, -1), // 0: Вверх
@@ -20,16 +22,28 @@ enum Object {
     Ant { id: usize }
 }
 
+#[derive(Eq, PartialEq)]
+pub enum Season {
+    Spring,
+    Summer,
+    Autumn,
+    Winter
+}
+
 pub struct Field {
     width: usize,
     height: usize,
+    season_timer: usize,
+    season: Season,
     all_cells: Vec<Object>,
     ants: Vec<Ant>,
+    detritus_layer: Vec<f32>
 }
 
 impl Field {
     pub fn new(width : usize, height : usize) -> Self {
         let mut all_cells = vec![Object::Null; width * height];
+        let detritus_layer = vec![0.0; width * height];
 
         let target_ants = 1000.min(width * height);
         let mut ants = Vec::with_capacity(target_ants);
@@ -52,12 +66,17 @@ impl Field {
         Self {
             width,
             height,
+            season_timer: 0,
+            season: Season::Spring,
             all_cells,
-            ants
+            ants,
+            detritus_layer
         }
     }
 
     pub fn tick(&mut self) {
+        let light_multiply = self.season_tick();
+
         for i in 0..self.ants.len() {
             let input = self.compute_input(i);
             self.ants[i].think(&input)
@@ -73,13 +92,19 @@ impl Field {
                 self.try_reproduce(i);
             }
 
+            if !self.ants[i].is_alive() {
+                continue;
+            }
+
             if self.ants[i].want_attack {
                 self.try_hunt(i);
+            } else if self.ants[i].want_eat {
+                self.try_eat(i);
             } else if self.ants[i].want_move {
                 self.move_ant(i);
                 self.ants[i].energy -= 1.0;
             } else if self.ants[i].want_photosynthesis {
-                self.ants[i].photosynthesis()
+                self.ants[i].photosynthesis(light_multiply);
             }
         }
 
@@ -96,7 +121,14 @@ impl Field {
     pub fn get_ants(&self) -> &Vec<Ant> {
         &self.ants
     }
-
+    pub fn get_season(&self) -> String {
+        match self.season {
+            Season::Spring => String::from("Spring"),
+            Season::Summer => String::from("Summer"),
+            Season::Autumn => String::from("Autumn"),
+            Season::Winter => String::from("Winter")
+        }
+    }
     fn move_ant(&mut self, ant_index : usize) {
         let (dx, dy) = DIRECTIONS[self.ants[ant_index].direction as usize];
 
@@ -126,8 +158,27 @@ impl Field {
         }
     }
 
-    fn compute_input(&self, ant_index : usize) -> [f32; 7] {
-        let mut brain_input = [0.0f32; 7];
+    fn season_tick(&mut self) -> f32 {
+        self.season_timer += 1;
+        if self.season_timer >= SEASON_DURATION {
+            self.season_timer = 0;
+            self.season = match self.season {
+                Season::Spring => Season::Summer,
+                Season::Summer => Season::Autumn,
+                Season::Autumn => Season::Winter,
+                Season::Winter => Season::Spring
+            }
+        }
+        match self.season {
+            Season::Spring => { 0.75 }
+            Season::Summer => { 1.0 }
+            Season::Autumn => { 0.45 }
+            Season::Winter => { 0.05 }
+        }
+    }
+
+    fn compute_input(&self, ant_index : usize) -> [f32; 8] {
+        let mut brain_input = [0.0f32; 8];
         brain_input[IN_ENERGY] = self.ants[ant_index].energy / MAX_ENERGY;
         brain_input[IN_DIRECTION] = self.ants[ant_index].direction as f32 / 8.0;
         brain_input[IN_HEIGHT] = self.ants[ant_index].y as f32 / FIELD_HEIGHT as f32;
@@ -135,6 +186,8 @@ impl Field {
         brain_input[IN_EYE] = eye;
         brain_input[IN_EYE_RELATIVE] = relative;
         brain_input[IN_SEX] = 0.0;
+        let idx = self.ants[ant_index].x + self.ants[ant_index].y * self.width;
+        brain_input[IN_DETRITUS] = self.detritus_layer[idx] / 10.0;
         brain_input[IN_MEMORY] = self.ants[ant_index].memory;
         brain_input
     }
@@ -167,6 +220,10 @@ impl Field {
         let dead = &self.ants[ant_index];
         let dead_idx = dead.x + dead.y * self.width;
         self.all_cells[dead_idx] = Object::Null;
+
+        if dead.energy > 0f32 {
+            self.detritus_layer[dead_idx] += 0.8 * dead.energy;
+        }
 
         let last_idx = self.ants.len() - 1;
         if ant_index != last_idx {
@@ -253,6 +310,10 @@ impl Field {
     }
 
     fn try_hunt(&mut self, ant_index : usize) {
+        if self.ants[ant_index].energy < ENERGY_FOR_HUNT {
+            return;
+        }
+
         let (dx, dy) = DIRECTIONS[self.ants[ant_index].direction as usize];
         let x = self.ants[ant_index].x as isize + dx;
         let y = self.ants[ant_index].y as isize + dy;
@@ -266,10 +327,43 @@ impl Field {
         if let Object::Ant { id: enemy_index } = self.all_cells[idx] {
             if self.ants[enemy_index].is_alive() {
                 let energy = self.ants[enemy_index].energy;
+                let needed = MAX_ENERGY - self.ants[ant_index].energy;
+                let eaten = energy.min(needed);
+
                 self.ants[enemy_index].energy = 0f32;
-                self.ants[ant_index].hunt_energy(energy);
+                self.ants[ant_index].hunt_energy(eaten);
+                self.ants[ant_index].energy -= ENERGY_FOR_HUNT;
                 self.ants[ant_index].memory = 1.0;
+
+                let left_over = energy - eaten;
+                if left_over > 0f32 {
+                    let idx = self.ants[enemy_index].x + self.ants[enemy_index].y * self.width;
+                    self.detritus_layer[idx] += left_over;
+                }
             }
         }
+    }
+
+    fn try_eat(&mut self, ant_index : usize) {
+        if self.ants[ant_index].energy < ENERGY_FOR_EAT {
+            return;
+        }
+        let idx = self.ants[ant_index].x + self.ants[ant_index].y * self.width;
+        let available = self.detritus_layer[idx];
+
+        if available <= 0.0 {
+            self.ants[ant_index].memory = -1.0;
+            return;
+        }
+
+        let needed = MAX_ENERGY - self.ants[ant_index].energy;
+        let eaten = available.min(needed);
+        if eaten > 0.0 {
+            self.detritus_layer[idx] -= eaten;
+            self.ants[ant_index].energy -= ENERGY_FOR_EAT;
+            self.ants[ant_index].eat_energy(eaten);
+            self.ants[ant_index].memory = 1.0;
+        }
+
     }
 }

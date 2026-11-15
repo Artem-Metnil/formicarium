@@ -9,6 +9,7 @@ use crate::field::Field;
 pub struct SimulationSnapshot {
     pub ticks: u64,
     pub actual_ticks_per_second: u32,
+    pub season: String,
     pub ants: Vec<Ant>
 }
 
@@ -62,7 +63,12 @@ impl SimulationWorker {
                     if let Ok(mut state) = thread_snapshot.lock() {
                         state.ticks = steps;
                         state.actual_ticks_per_second = actual_tps;
+                        state.season = field.get_season();
                         state.ants = field.get_ants().to_vec();
+                        if state.ants.len() == 0 {
+                            state.actual_ticks_per_second = 0;
+                            break;
+                        }
                     }
                 }
 
