@@ -1,7 +1,7 @@
 use std::vec::Vec;
 use rand::Rng;
-use crate::ant::{Ant, ReproductionType, ENERGY_FOR_REPRODUCE, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY, ENERGY_FOR_HUNT, IN_DETRITUS, ENERGY_FOR_EAT, IN_AGE, MAX_LIFE_TIME};
-use crate::FIELD_HEIGHT;
+use crate::ant::{Ant, ReproductionType, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, MAX_ENERGY, IN_DETRITUS, IN_AGE, MAX_LIFE_TIME, Action, IN_X};
+use crate::graph_brain::{NUM_INPUTS};
 
 const SEASON_DURATION: usize = 1000;
 
@@ -67,7 +67,7 @@ impl Field {
             width,
             height,
             season_timer: 0,
-            season: Season::Spring,
+            season: Season::Summer,
             all_cells,
             ants,
             detritus_layer
@@ -75,11 +75,11 @@ impl Field {
     }
 
     pub fn tick(&mut self) {
-        let light_multiply = self.season_tick();
+        let light_multiply = 1.0;//self.season_tick();
 
         for i in 0..self.ants.len() {
             let input = self.compute_input(i);
-            self.ants[i].think(&input)
+            self.ants[i].think(input)
         }
 
         let ant_count = self.ants.len();
@@ -87,24 +87,43 @@ impl Field {
             if !self.ants[i].is_alive() {
                 continue;
             }
+            self.ants[i].age += 1;
 
-            if self.ants[i].want_reproduce {
-                self.try_reproduce(i);
-            }
-
-            if !self.ants[i].is_alive() {
-                continue;
-            }
-
-            if self.ants[i].want_attack {
-                self.try_hunt(i);
-            } else if self.ants[i].want_eat {
-                self.try_eat(i);
-            } else if self.ants[i].want_move {
-                self.move_ant(i);
-                self.ants[i].energy -= 1.0;
-            } else if self.ants[i].want_photosynthesis {
-                self.ants[i].photosynthesis(light_multiply);
+            match self.ants[i].want_to_do {
+                Action::Attack => {
+                    if self.try_hunt(i) {
+                        self.ants[i].energy -= self.ants[i].want_to_do.cost();
+                    };
+                },
+                Action::Eat => {
+                    if self.try_eat(i) {
+                        self.ants[i].energy -= self.ants[i].want_to_do.cost();
+                    }
+                },
+                Action::Move => {
+                    if self.try_move_ant(i) {
+                        self.ants[i].energy -= self.ants[i].want_to_do.cost();
+                    }
+                },
+                Action::Photosynthesis => {
+                    self.ants[i].photosynthesis(light_multiply);
+                },
+                Action::Reproduce => {
+                    self.try_reproduce(i);
+                },
+                Action::RotateLeft => {
+                    self.ants[i].direction -= 1;
+                    if self.ants[i].direction < 0 {
+                        self.ants[i].direction = 7;
+                    }
+                },
+                Action::RotateRight => {
+                    self.ants[i].direction += 1;
+                    if self.ants[i].direction > 7 {
+                        self.ants[i].direction = 0;
+                    }
+                },
+                Action::Idle => {},
             }
         }
 
@@ -129,7 +148,10 @@ impl Field {
             Season::Winter => String::from("Winter")
         }
     }
-    fn move_ant(&mut self, ant_index : usize) {
+    fn try_move_ant(&mut self, ant_index : usize) -> bool {
+        if self.ants[ant_index].energy < Action::Move.cost() {
+            return false;
+        }
         let (dx, dy) = DIRECTIONS[self.ants[ant_index].direction as usize];
 
         let old_x = self.ants[ant_index].x;
@@ -138,7 +160,7 @@ impl Field {
         let y = old_y as isize + dy;
 
         if x < 0 || x >= self.width as isize || y < 0 || y >= self.height as isize {
-            return;
+            return false;
         }
 
         let x = x as usize;
@@ -154,8 +176,9 @@ impl Field {
 
             self.ants[ant_index].x = x;
             self.ants[ant_index].y = y;
-            self.ants[ant_index].memory = 1.0
+            return true;
         }
+        false
     }
 
     fn season_tick(&mut self) -> f32 {
@@ -177,18 +200,17 @@ impl Field {
         }
     }
 
-    fn compute_input(&self, ant_index : usize) -> [f32; 9] {
-        let mut brain_input = [0.0f32; 9];
-        brain_input[IN_ENERGY] = self.ants[ant_index].energy / MAX_ENERGY;
+    fn compute_input(&self, ant_index : usize) -> [f32; NUM_INPUTS as usize] {
+        let mut brain_input = [0.0f32; NUM_INPUTS as usize];
+        brain_input[IN_ENERGY] = 1.0 - self.ants[ant_index].energy / MAX_ENERGY;
         brain_input[IN_DIRECTION] = self.ants[ant_index].direction as f32 / 8.0;
-        brain_input[IN_HEIGHT] = self.ants[ant_index].y as f32 / FIELD_HEIGHT as f32;
+        brain_input[IN_HEIGHT] = self.ants[ant_index].y as f32 / self.height as f32;
         let (eye, relative) = self.see_forward(ant_index);
         brain_input[IN_EYE] = eye;
         brain_input[IN_EYE_RELATIVE] = relative;
-        brain_input[IN_SEX] = 0.0;
+        brain_input[IN_X] = self.ants[ant_index].x as f32 / self.width as f32;
         let idx = self.ants[ant_index].x + self.ants[ant_index].y * self.width;
         brain_input[IN_DETRITUS] = (self.detritus_layer[idx] / 50.0).min(1.0);
-        brain_input[IN_MEMORY] = self.ants[ant_index].memory;
         brain_input[IN_AGE] = self.ants[ant_index].age as f32 / MAX_LIFE_TIME as f32;
         brain_input
     }
@@ -223,7 +245,7 @@ impl Field {
         self.all_cells[dead_idx] = Object::Null;
 
         if dead.energy > 0f32 {
-            self.detritus_layer[dead_idx] += 0.8 * dead.energy;
+            self.detritus_layer[dead_idx] += 0.5 * dead.energy;
         }
 
         let last_idx = self.ants.len() - 1;
@@ -236,9 +258,9 @@ impl Field {
         self.ants.swap_remove(ant_index);
     }
 
-    fn try_reproduce(&mut self, ant_index : usize) {
-        if self.ants[ant_index].energy < ENERGY_FOR_REPRODUCE {
-            return;
+    fn try_reproduce(&mut self, ant_index : usize) -> bool {
+        if self.ants[ant_index].energy < self.ants[ant_index].want_to_do.cost() {
+            return false;
         }
 
         let pos_x = self.ants[ant_index].x;
@@ -257,14 +279,14 @@ impl Field {
                 let idx = target_x + target_y * self.width;
 
                 if let Object::Null = self.all_cells[idx] {
-                    self.ants[ant_index].energy -= ENERGY_FOR_REPRODUCE;
+                    self.ants[ant_index].energy -= self.ants[ant_index].want_to_do.cost();
                     let energy = self.ants[ant_index].energy * 0.25;
                     self.ants[ant_index].energy -= energy;
                     let child = self.ants[ant_index].divide_budding(target_x, target_y, energy);
                     let new_id = self.ants.len();
                     self.ants.push(child);
                     self.all_cells[idx] = Object::Ant { id: new_id };
-                    return;
+                    return true;
                 }
             }
         } else if self.ants[ant_index].reproduction_type == ReproductionType::Mitosis {
@@ -306,20 +328,22 @@ impl Field {
                 let new_id = self.ants.len();
                 self.ants.push(child2);
                 self.all_cells[c2.0] = Object::Ant { id: new_id };
+                return true;
             }
         }
+        false
     }
 
-    fn try_hunt(&mut self, ant_index : usize) {
-        if self.ants[ant_index].energy < ENERGY_FOR_HUNT {
-            return;
+    fn try_hunt(&mut self, ant_index : usize) -> bool {
+        if self.ants[ant_index].energy < self.ants[ant_index].want_to_do.cost() {
+            return false;
         }
 
         let (dx, dy) = DIRECTIONS[self.ants[ant_index].direction as usize];
         let x = self.ants[ant_index].x as isize + dx;
         let y = self.ants[ant_index].y as isize + dy;
         if x < 0 || x >= self.width as isize || y < 0 || y >= self.height as isize {
-            return;
+            return false;
         }
         let x = x as usize;
         let y = y as usize;
@@ -333,38 +357,37 @@ impl Field {
 
                 self.ants[enemy_index].energy = 0f32;
                 self.ants[ant_index].hunt_energy(eaten);
-                self.ants[ant_index].energy -= ENERGY_FOR_HUNT;
-                self.ants[ant_index].memory = 1.0;
 
                 let left_over = energy - eaten;
                 if left_over > 0f32 {
                     let idx = self.ants[enemy_index].x + self.ants[enemy_index].y * self.width;
                     self.detritus_layer[idx] += left_over;
                 }
+
+                return true;
             }
         }
+        false
     }
 
-    fn try_eat(&mut self, ant_index : usize) {
-        if self.ants[ant_index].energy < ENERGY_FOR_EAT {
-            return;
+    fn try_eat(&mut self, ant_index : usize) -> bool {
+        if self.ants[ant_index].energy < self.ants[ant_index].want_to_do.cost() {
+            return false;
         }
         let idx = self.ants[ant_index].x + self.ants[ant_index].y * self.width;
         let available = self.detritus_layer[idx];
 
         if available <= 0.0 {
-            self.ants[ant_index].memory = -1.0;
-            return;
+            return false;
         }
 
         let needed = MAX_ENERGY - self.ants[ant_index].energy;
         let eaten = available.min(needed);
         if eaten > 0.0 {
             self.detritus_layer[idx] -= eaten;
-            self.ants[ant_index].energy -= ENERGY_FOR_EAT;
             self.ants[ant_index].eat_energy(eaten);
-            self.ants[ant_index].memory = 1.0;
+            return true;
         }
-
+        false
     }
 }

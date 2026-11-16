@@ -2,12 +2,14 @@ mod simulation;
 mod field;
 mod ant;
 mod brain;
+mod graph_brain;
 
 use macroquad::prelude::*;
 use egui_macroquad::{egui, ui};
 use crate::ant::{ReproductionType, MAX_ENERGY};
 use crate::simulation::SimulationWorker;
 
+pub const DEFAULT_INTERVAL: u32 = 10;
 const WINDOW_WIDTH: i32 = 1280;
 const WINDOW_HEIGHT: i32 = 720;
 const GUI_WINDOW_WIDTH: f32 = 280.0;
@@ -42,7 +44,7 @@ async fn main() {
     let mut simulation = SimulationWorker::new(FIELD_WIDTH, FIELD_HEIGHT);
 
     let mut theme_initialized = false;
-    let mut interval_ms = 0;
+    let mut interval_ms = DEFAULT_INTERVAL;
     let mut is_stopped = true;
     let mut render_mode = RenderType::Natural;
 
@@ -63,7 +65,6 @@ async fn main() {
                     match ant.reproduction_type {
                         ReproductionType::Budding => { GREEN }
                         ReproductionType::Mitosis => { BLUE }
-                        ReproductionType::Meiosis => { RED }
                     }
                 },
                 RenderType::Predators => {

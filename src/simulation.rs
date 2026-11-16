@@ -3,6 +3,7 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 use crate::ant::Ant;
+use crate::DEFAULT_INTERVAL;
 use crate::field::Field;
 
 #[derive(Clone, Default)]
@@ -25,7 +26,7 @@ impl SimulationWorker {
     pub fn new(width : usize, height: usize) -> Self {
 
         let is_paused = Arc::new(AtomicBool::new(true));
-        let interval_ms = Arc::new(AtomicU64::new(0));
+        let interval_ms = Arc::new(AtomicU64::new(DEFAULT_INTERVAL as u64));
         let wants_snapshot = Arc::new(AtomicBool::new(false));
         let snapshot = Arc::new(Mutex::new(SimulationSnapshot::default()));
 

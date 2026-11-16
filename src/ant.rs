@@ -1,37 +1,73 @@
 use rand::Rng;
-use crate::brain::Brain;
+use crate::graph_brain::{Brain, NUM_INPUTS, NUM_OUTPUTS};
 
 pub const MAX_LIFE_TIME: u32 = 500;
 pub const MAX_ENERGY: f32 = 250.0;
-pub const ENERGY_FOR_REPRODUCE: f32 = 50.0;
-pub const ENERGY_FOR_HUNT: f32 = 10.0;
-pub const ENERGY_FOR_EAT: f32 = 5.0;
-const PHOTOSYNTHESIS_ENERGY: f32 = 1.0;
+const PHOTOSYNTHESIS_ENERGY: f32 = 2.0;
 
-pub const IN_ENERGY: usize = 0;
-pub const IN_DIRECTION: usize = 1;
-pub const IN_HEIGHT: usize = 2;
-pub const IN_EYE: usize = 3;
-pub const IN_EYE_RELATIVE: usize = 4;
-pub const IN_SEX: usize = 5;
-pub const IN_DETRITUS: usize = 6;
-pub const IN_MEMORY: usize = 7;
-pub const IN_AGE: usize = 8;
+// BRAIN INPUTS
+pub const IN_ENERGY:        usize = 0;
+pub const IN_DIRECTION:     usize = 1;
+pub const IN_HEIGHT:        usize = 2;
+pub const IN_EYE:           usize = 3;
+pub const IN_EYE_RELATIVE:  usize = 4;
+pub const IN_X:           usize = 5;
+pub const IN_DETRITUS:      usize = 6;
+pub const IN_AGE:           usize = 7;
+// BRAIN OUTPUTS
+pub const OUT_PHOTOSYNTHESIS: usize = 0;
+pub const OUT_EAT:            usize = 1;
+pub const OUT_MOVE:           usize = 2;
+pub const OUT_ROTATE_LEFT:    usize = 3;
+pub const OUT_ROTATE_RIGHT:   usize = 4;
+pub const OUT_ATTACK:         usize = 5;
+pub const OUT_REPRODUCE:      usize = 6;
 
-const OUT_ROTATE_LEFT: usize = 0;
-const OUT_ROTATE_RIGHT: usize = 1;
-const OUT_MOVE: usize = 2;
-const OUT_PHOTOSYNTHESIS: usize = 3;
-const OUT_ATTACK: usize = 4;
-const OUT_REPRODUCE: usize = 5;
-const OUT_EAT: usize = 6;
+#[derive(Clone, Copy)]
+pub enum Action {
+    Attack,
+    Eat,
+    Move,
+    Photosynthesis,
+    Reproduce,
+    RotateLeft,
+    RotateRight,
+    Idle,
+}
 
+
+impl Action {
+    pub fn cost(&self) -> f32 {
+        match self {
+            Action::Attack => 10f32,
+            Action::Eat => 10f32,
+            Action::Move => 1f32,
+            Action::Photosynthesis => 0f32,
+            Action::Reproduce => 50f32,
+            Action::RotateLeft => 0f32,
+            Action::RotateRight => 0f32,
+            Action::Idle => 0f32,
+        }
+    }
+
+    pub fn from_idx(idx: usize) -> Action {
+        match idx {
+            OUT_ATTACK => Action::Attack,
+            OUT_EAT => Action::Eat,
+            OUT_MOVE => Action::Move,
+            OUT_PHOTOSYNTHESIS => Action::Photosynthesis,
+            OUT_REPRODUCE => Action::Reproduce,
+            OUT_ROTATE_LEFT => Action::RotateLeft,
+            OUT_ROTATE_RIGHT => Action::RotateRight,
+            _ => Action::Idle,
+        }
+    }
+}
 
 #[derive(PartialEq, Clone, Copy)]
 pub enum ReproductionType {
     Budding,
     Mitosis,
-    Meiosis,
 }
 
 #[derive(Clone)]
@@ -40,14 +76,8 @@ pub struct Ant {
     pub y: usize,
     pub energy: f32,
     pub direction: i8,
-    pub memory: f32,
     pub age: u32,
-
-    pub want_attack: bool,
-    pub want_move: bool,
-    pub want_photosynthesis: bool,
-    pub want_reproduce: bool,
-    pub want_eat: bool,
+    pub want_to_do: Action,
 
     pub score_photosynthesis: f32,
     pub score_predators: f32,
@@ -65,46 +95,35 @@ impl Ant {
             y,
             energy: rng.gen_range(50.0..MAX_ENERGY),
             direction: 0,
-            memory: 0.0,
             age: 0,
+            want_to_do: Action::Idle,
 
-            want_attack: false,
-            want_move: false,
-            want_reproduce: false,
-            want_photosynthesis: false,
-            want_eat: false,
             score_photosynthesis: 0.0,
             score_predators: 0.0,
             score_herbivorous: 0.0,
             reproduction_type: ReproductionType::Budding,
-            brain: Brain::new()
+            brain: Brain::new(&mut rng)
         }
     }
 
-    pub fn think(&mut self, input: &[f32; 9]) {
+    pub fn think(&mut self, input: [f32; NUM_INPUTS as usize]) {
+        self.energy -= self.brain.metabolic_cost();
+        let brain_outputs = self.brain.forward(input);
 
-        let brain_outputs = self.brain.forward(&input);
-
-        if brain_outputs[OUT_ROTATE_LEFT] > 0.5f32 {
-            self.direction -= 1;
-            if self.direction < 0 {
-                self.direction = 7;
-            }
-        }
-        if brain_outputs[OUT_ROTATE_RIGHT] > 0.5f32 {
-            self.direction += 1;
-            if self.direction > 7 {
-                self.direction = 0;
+        let mut best_idx = usize::MAX;
+        let mut best_val = 0.5f32;
+        for i in 0..NUM_OUTPUTS as usize {
+            if brain_outputs[i] > best_val {
+                best_idx = i;
+                best_val = brain_outputs[i];
             }
         }
 
-        self.want_attack = brain_outputs[OUT_ATTACK] > 0.5f32;
-        self.want_move = brain_outputs[OUT_MOVE] > 0.5f32;
-        self.want_photosynthesis = brain_outputs[OUT_PHOTOSYNTHESIS] > 0.5f32;
-        self.want_reproduce = brain_outputs[OUT_REPRODUCE] > 0.5f32;
-        self.want_eat = brain_outputs[OUT_EAT] > 0.5f32;
-        self.memory = 0.0;
-        self.age += 1;
+        if best_idx == usize::MAX {
+            self.want_to_do = Action::Idle;
+        } else {
+            self.want_to_do = Action::from_idx(best_idx);
+        }
     }
 
     pub fn photosynthesis(&mut self, multiply: f32) {
@@ -145,13 +164,9 @@ impl Ant {
             y,
             energy,
             direction: 0,
-            memory: 0.0,
             age: 0,
-            want_attack: false,
-            want_move: false,
-            want_reproduce: false,
-            want_photosynthesis: false,
-            want_eat: false,
+            want_to_do: Action::Idle,
+
             score_photosynthesis: 0.0,
             score_predators: 0.0,
             score_herbivorous: 0.0,
@@ -160,7 +175,7 @@ impl Ant {
         };
 
         if rng.gen_bool(0.20) {
-            child.mutate(&mut rng); // <--- ТЕПЕРЬ ВЫЗЫВАЕТСЯ ПРАВИЛЬНЫЙ МЕТОД
+            child.mutate(&mut rng);
         }
 
         child
@@ -174,13 +189,9 @@ impl Ant {
             y,
             energy,
             direction: 0,
-            memory: 0.0,
             age: 0,
-            want_attack: false,
-            want_move: false,
-            want_reproduce: false,
-            want_photosynthesis: false,
-            want_eat: false,
+            want_to_do: Action::Idle,
+
             score_photosynthesis: 0.0,
             score_predators: 0.0,
             score_herbivorous: 0.0,
@@ -197,7 +208,8 @@ impl Ant {
 
     pub fn get_tag(&self) -> usize { self.brain.tag }
     pub fn is_relative(&self, other_tag: usize) -> bool {
-        self.brain.is_relative(other_tag)
+        let diff = self.brain.tag ^ other_tag;
+        diff.count_ones() < 5
     }
 
     fn mutate(&mut self, rng: &mut impl Rng) {
@@ -205,13 +217,16 @@ impl Ant {
             self.reproduction_type = match self.reproduction_type {
                 ReproductionType::Budding => ReproductionType::Mitosis,
                 ReproductionType::Mitosis => ReproductionType::Budding,
-                ReproductionType::Meiosis => ReproductionType::Budding,
             };
-            self.brain.tag ^= 1usize << rng.gen_range(0..usize::BITS);
+            let flip = rng.gen_range(10..15);
+            for _ in 0..flip {
+                self.brain.tag ^= 1usize << rng.gen_range(0..usize::BITS);
+            }
+
         } else {
             let n = rng.gen_range(1..7);
             for _ in 0..n {
-                self.brain.mutate();
+                self.brain.mutate(rng);
             }
         }
 
