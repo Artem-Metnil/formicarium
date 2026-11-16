@@ -1,7 +1,7 @@
 use rand::Rng;
 use crate::brain::Brain;
 
-const MAX_LIFE_TIME: u32 = 500;
+pub const MAX_LIFE_TIME: u32 = 500;
 pub const MAX_ENERGY: f32 = 250.0;
 pub const ENERGY_FOR_REPRODUCE: f32 = 50.0;
 pub const ENERGY_FOR_HUNT: f32 = 10.0;
@@ -16,6 +16,7 @@ pub const IN_EYE_RELATIVE: usize = 4;
 pub const IN_SEX: usize = 5;
 pub const IN_DETRITUS: usize = 6;
 pub const IN_MEMORY: usize = 7;
+pub const IN_AGE: usize = 8;
 
 const OUT_ROTATE_LEFT: usize = 0;
 const OUT_ROTATE_RIGHT: usize = 1;
@@ -80,7 +81,7 @@ impl Ant {
         }
     }
 
-    pub fn think(&mut self, input: &[f32; 8]) {
+    pub fn think(&mut self, input: &[f32; 9]) {
 
         let brain_outputs = self.brain.forward(&input);
 

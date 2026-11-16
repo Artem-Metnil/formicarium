@@ -1,6 +1,6 @@
 use std::vec::Vec;
 use rand::Rng;
-use crate::ant::{Ant, ReproductionType, ENERGY_FOR_REPRODUCE, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY, ENERGY_FOR_HUNT, IN_DETRITUS, ENERGY_FOR_EAT};
+use crate::ant::{Ant, ReproductionType, ENERGY_FOR_REPRODUCE, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, IN_MEMORY, IN_SEX, MAX_ENERGY, ENERGY_FOR_HUNT, IN_DETRITUS, ENERGY_FOR_EAT, IN_AGE, MAX_LIFE_TIME};
 use crate::FIELD_HEIGHT;
 
 const SEASON_DURATION: usize = 1000;
@@ -177,8 +177,8 @@ impl Field {
         }
     }
 
-    fn compute_input(&self, ant_index : usize) -> [f32; 8] {
-        let mut brain_input = [0.0f32; 8];
+    fn compute_input(&self, ant_index : usize) -> [f32; 9] {
+        let mut brain_input = [0.0f32; 9];
         brain_input[IN_ENERGY] = self.ants[ant_index].energy / MAX_ENERGY;
         brain_input[IN_DIRECTION] = self.ants[ant_index].direction as f32 / 8.0;
         brain_input[IN_HEIGHT] = self.ants[ant_index].y as f32 / FIELD_HEIGHT as f32;
@@ -187,8 +187,9 @@ impl Field {
         brain_input[IN_EYE_RELATIVE] = relative;
         brain_input[IN_SEX] = 0.0;
         let idx = self.ants[ant_index].x + self.ants[ant_index].y * self.width;
-        brain_input[IN_DETRITUS] = self.detritus_layer[idx] / 10.0;
+        brain_input[IN_DETRITUS] = (self.detritus_layer[idx] / 50.0).min(1.0);
         brain_input[IN_MEMORY] = self.ants[ant_index].memory;
+        brain_input[IN_AGE] = self.ants[ant_index].age as f32 / MAX_LIFE_TIME as f32;
         brain_input
     }
 
