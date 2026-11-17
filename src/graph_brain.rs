@@ -10,7 +10,6 @@ pub enum Activation {
     Step,
     Sigmoid,
     Tanh,
-    RadialBasis,
 }
 
 // 8 bytes
@@ -277,7 +276,7 @@ fn apply_activation(act: Activation, x: f32) -> f32 {
         Activation::Step => if x >= 0.5 { 1.0 } else { 0.0 },
         Activation::Sigmoid => 0.5 + 0.5 * x / (1.0 + x.abs()),
         Activation::Tanh => x / (1.0 + x.abs()),
-        Activation::RadialBasis => 1.0 / (1.0 + x * x),
+        //Activation::RadialBasis => 1.0 / (1.0 + x * x),
     }
 }
 

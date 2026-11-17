@@ -1,10 +1,29 @@
 use std::sync::{Arc, Mutex};
-use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 use crate::ant::Ant;
-use crate::DEFAULT_INTERVAL;
 use crate::field::Field;
+
+pub struct SimulationConfig {
+    pub is_paused: AtomicBool,
+    pub interval_ms: AtomicU64,
+    pub photosynthesis_multiplier: AtomicU32,
+    pub ticks_per_season: AtomicU32,
+    pub corpse_energy_ratio: AtomicU32,
+}
+
+impl Default for SimulationConfig {
+    fn default() -> Self {
+        Self {
+            is_paused: AtomicBool::new(true),
+            interval_ms: AtomicU64::new(10),
+            photosynthesis_multiplier: AtomicU32::new(1.0f32.to_bits()),
+            ticks_per_season: AtomicU32::new(0),
+            corpse_energy_ratio: AtomicU32::new(0.5f32.to_bits()),
+        }
+    }
+}
 
 #[derive(Clone, Default)]
 pub struct SimulationSnapshot {
@@ -14,9 +33,14 @@ pub struct SimulationSnapshot {
     pub ants: Vec<Ant>
 }
 
+impl SimulationSnapshot {
+    pub fn object_count(&self) -> usize {
+        self.ants.len()
+    }
+}
+
 pub struct SimulationWorker {
-    is_paused: Arc<AtomicBool>,
-    interval_ms: Arc<AtomicU64>,
+    config: Arc<SimulationConfig>,
     wants_snapshot: Arc<AtomicBool>,
     snapshot: Arc<Mutex<SimulationSnapshot>>,
     _handle: thread::JoinHandle<()>
@@ -25,13 +49,11 @@ pub struct SimulationWorker {
 impl SimulationWorker {
     pub fn new(width : usize, height: usize) -> Self {
 
-        let is_paused = Arc::new(AtomicBool::new(true));
-        let interval_ms = Arc::new(AtomicU64::new(DEFAULT_INTERVAL as u64));
+        let config = Arc::new(SimulationConfig::default());
         let wants_snapshot = Arc::new(AtomicBool::new(false));
         let snapshot = Arc::new(Mutex::new(SimulationSnapshot::default()));
 
-        let thread_paused = Arc::clone(&is_paused);
-        let thread_interval_ms = Arc::clone(&interval_ms);
+        let thread_config = Arc::clone(&config);
         let thread_wants_snapshot = Arc::clone(&wants_snapshot);
         let thread_snapshot = Arc::clone(&snapshot);
 
@@ -45,12 +67,12 @@ impl SimulationWorker {
 
             loop {
 
-                if thread_paused.load(Ordering::Relaxed) {
+                if thread_config.is_paused.load(Ordering::Relaxed) {
                     thread::sleep(Duration::from_millis(50));
                     continue;
                 }
 
-                field.tick();
+                field.tick(&thread_config);
                 steps += 1;
                 ticks_in_current_second += 1;
 
@@ -73,7 +95,7 @@ impl SimulationWorker {
                     }
                 }
 
-                let interval = thread_interval_ms.load(Ordering::Relaxed);
+                let interval = thread_config.interval_ms.load(Ordering::Relaxed);
                 if interval > 0 {
                     thread::sleep(Duration::from_millis(interval));
                 }
@@ -84,8 +106,7 @@ impl SimulationWorker {
         });
 
         Self {
-            is_paused,
-            interval_ms,
+            config,
             wants_snapshot,
             snapshot,
             _handle: handle
@@ -101,10 +122,20 @@ impl SimulationWorker {
     }
 
     pub fn set_paused(&mut self, paused: bool) {
-        self.is_paused.store(paused, Ordering::Relaxed);
+        self.config.is_paused.store(paused, Ordering::Relaxed);
     }
 
     pub fn set_interval(&mut self, interval: u32) {
-        self.interval_ms.store(interval as u64, Ordering::Relaxed);
+        self.config.interval_ms.store(interval as u64, Ordering::Relaxed);
+    }
+
+    pub fn set_photosynthesis_multiplier(&self, val: f32) {
+        self.config.photosynthesis_multiplier.store(val.to_bits(), Ordering::Relaxed);
+    }
+    pub fn set_ticks_per_season(&self, val: u32) {
+        self.config.ticks_per_season.store(val, Ordering::Relaxed);
+    }
+    pub fn set_corpse_energy_ratio(&self, val: f32) {
+        self.config.corpse_energy_ratio.store(val.to_bits(), Ordering::Relaxed);
     }
 }

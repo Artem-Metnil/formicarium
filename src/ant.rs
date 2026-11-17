@@ -3,7 +3,6 @@ use crate::graph_brain::{Brain, NUM_INPUTS, NUM_OUTPUTS};
 
 pub const MAX_LIFE_TIME: u32 = 500;
 pub const MAX_ENERGY: f32 = 250.0;
-const PHOTOSYNTHESIS_ENERGY: f32 = 2.0;
 
 // BRAIN INPUTS
 pub const IN_ENERGY:        usize = 0;
@@ -126,8 +125,7 @@ impl Ant {
         }
     }
 
-    pub fn photosynthesis(&mut self, multiply: f32) {
-        let energy = PHOTOSYNTHESIS_ENERGY * multiply;
+    pub fn photosynthesis(&mut self, energy: f32) {
         self.energy += energy;
         self.score_photosynthesis += energy;
         if self.energy > MAX_ENERGY {

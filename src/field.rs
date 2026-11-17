@@ -1,9 +1,10 @@
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::vec::Vec;
 use rand::Rng;
 use crate::ant::{Ant, ReproductionType, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, MAX_ENERGY, IN_DETRITUS, IN_AGE, MAX_LIFE_TIME, Action, IN_X};
 use crate::graph_brain::{NUM_INPUTS};
-
-const SEASON_DURATION: usize = 1000;
+use crate::simulation::SimulationConfig;
 
 pub const DIRECTIONS: [(isize, isize); 8] = [
     (0, -1), // 0: Вверх
@@ -33,7 +34,7 @@ pub enum Season {
 pub struct Field {
     width: usize,
     height: usize,
-    season_timer: usize,
+    season_timer: u32,
     season: Season,
     all_cells: Vec<Object>,
     ants: Vec<Ant>,
@@ -74,8 +75,17 @@ impl Field {
         }
     }
 
-    pub fn tick(&mut self) {
-        let light_multiply = 1.0;//self.season_tick();
+    pub fn tick(&mut self, config: &Arc<SimulationConfig>) {
+        let photo_multiplier = f32::from_bits(config.photosynthesis_multiplier.load(Ordering::Relaxed));
+        let season_duration = config.ticks_per_season.load(Ordering::Relaxed);
+        let corpse_ratio = f32::from_bits(config.corpse_energy_ratio.load(Ordering::Relaxed));
+
+        let light_multiply = if season_duration > 0 {
+            self.season_tick(season_duration)
+        } else {
+            1.0
+        };
+
 
         for i in 0..self.ants.len() {
             let input = self.compute_input(i);
@@ -106,7 +116,7 @@ impl Field {
                     }
                 },
                 Action::Photosynthesis => {
-                    self.ants[i].photosynthesis(light_multiply);
+                    self.ants[i].photosynthesis(light_multiply * photo_multiplier);
                 },
                 Action::Reproduce => {
                     self.try_reproduce(i);
@@ -130,7 +140,7 @@ impl Field {
         let mut i = 0;
         while i < self.ants.len() {
             if !self.ants[i].is_alive() {
-                self.kill_ant(i);
+                self.kill_ant(i, corpse_ratio);
             } else {
                 i += 1
             }
@@ -181,9 +191,9 @@ impl Field {
         false
     }
 
-    fn season_tick(&mut self) -> f32 {
+    fn season_tick(&mut self, duration: u32) -> f32 {
         self.season_timer += 1;
-        if self.season_timer >= SEASON_DURATION {
+        if self.season_timer >= duration {
             self.season_timer = 0;
             self.season = match self.season {
                 Season::Spring => Season::Summer,
@@ -239,13 +249,13 @@ impl Field {
         }
     }
 
-    fn kill_ant(&mut self, ant_index : usize) {
+    fn kill_ant(&mut self, ant_index : usize, corpse_ratio: f32) {
         let dead = &self.ants[ant_index];
         let dead_idx = dead.x + dead.y * self.width;
         self.all_cells[dead_idx] = Object::Null;
 
         if dead.energy > 0f32 {
-            self.detritus_layer[dead_idx] += 0.5 * dead.energy;
+            self.detritus_layer[dead_idx] += corpse_ratio * dead.energy;
         }
 
         let last_idx = self.ants.len() - 1;
