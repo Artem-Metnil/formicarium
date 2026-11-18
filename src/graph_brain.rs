@@ -144,7 +144,7 @@ impl Brain {
     }
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, String> {
-        if bytes.len() <= 6 && bytes[0..4] != MAGIC {
+        if bytes.len() < 6 || bytes[0..4] != MAGIC {
             return Err("Invalid file format".to_string());
         }
         let version = u16::from_le_bytes([bytes[4], bytes[5]]);

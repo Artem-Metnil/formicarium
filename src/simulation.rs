@@ -1,9 +1,11 @@
+use std::collections::VecDeque;
 use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
 use std::thread;
 use std::time::{Duration, Instant};
 use crate::ant::Ant;
 use crate::field::Field;
+use crate::graph_brain::Brain;
 
 pub struct SimulationConfig {
     pub is_paused: AtomicBool,
@@ -11,6 +13,12 @@ pub struct SimulationConfig {
     pub photosynthesis_multiplier: AtomicU32,
     pub ticks_per_season: AtomicU32,
     pub corpse_energy_ratio: AtomicU32,
+}
+
+pub enum Command {
+    Spawn { x: usize, y: usize, brain: Brain },
+    Remove { x: usize, y: usize },
+    ForceMutate { x: usize, y: usize },
 }
 
 impl Default for SimulationConfig {
@@ -43,6 +51,8 @@ pub struct SimulationWorker {
     config: Arc<SimulationConfig>,
     wants_snapshot: Arc<AtomicBool>,
     snapshot: Arc<Mutex<SimulationSnapshot>>,
+    command_queue: Arc<Mutex<VecDeque<Command>>>,
+    have_command: Arc<AtomicBool>,
     _handle: thread::JoinHandle<()>
 }
 
@@ -53,9 +63,15 @@ impl SimulationWorker {
         let wants_snapshot = Arc::new(AtomicBool::new(false));
         let snapshot = Arc::new(Mutex::new(SimulationSnapshot::default()));
 
+        let have_command = Arc::new(AtomicBool::new(false));
+        let command_queue = Arc::new(Mutex::new(VecDeque::new()));
+
         let thread_config = Arc::clone(&config);
         let thread_wants_snapshot = Arc::clone(&wants_snapshot);
         let thread_snapshot = Arc::clone(&snapshot);
+
+        let thread_have_command = Arc::clone(&have_command);
+        let thread_command_queue = Arc::clone(&command_queue);
 
         let handle = thread::spawn(move || {
             let mut field: Field = Field::new(width, height);
@@ -70,6 +86,14 @@ impl SimulationWorker {
                 if thread_config.is_paused.load(Ordering::Relaxed) {
                     thread::sleep(Duration::from_millis(50));
                     continue;
+                }
+
+                if thread_have_command.load(Ordering::Relaxed) {
+                    let mut queue = thread_command_queue.lock().unwrap();
+                    for cmd in queue.drain(..) {
+                        field.apply_command(cmd);
+                    }
+                    thread_have_command.store(false, Ordering::Relaxed);
                 }
 
                 field.tick(&thread_config);
@@ -119,6 +143,8 @@ impl SimulationWorker {
             config,
             wants_snapshot,
             snapshot,
+            command_queue,
+            have_command,
             _handle: handle
         }
     }
@@ -147,5 +173,12 @@ impl SimulationWorker {
     }
     pub fn set_corpse_energy_ratio(&self, val: f32) {
         self.config.corpse_energy_ratio.store(val.to_bits(), Ordering::Relaxed);
+    }
+
+    pub fn send_command(&self, cmd: Command) {
+        if let Ok(mut queue) = self.command_queue.lock() {
+            queue.push_back(cmd);
+            self.have_command.store(true, Ordering::Relaxed);
+        }
     }
 }

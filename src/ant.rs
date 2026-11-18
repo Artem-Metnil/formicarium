@@ -82,6 +82,12 @@ pub struct Ant {
 impl Ant {
     pub fn new(x: usize, y: usize) -> Self {
         let mut rng = rand::thread_rng();
+        let brain = Brain::new(&mut rng);
+        Self::from_brain(x, y, brain)
+    }
+
+    pub fn from_brain(x: usize, y: usize, brain: Brain) -> Self {
+        let mut rng = rand::thread_rng();
         Self {
             x,
             y,
@@ -93,8 +99,9 @@ impl Ant {
             score_photosynthesis: 0.0,
             score_predators: 0.0,
             score_herbivorous: 0.0,
-            brain: Brain::new(&mut rng)
+            brain
         }
+
     }
 
     pub fn think(&mut self, input: [f32; NUM_INPUTS as usize]) {
@@ -164,7 +171,7 @@ impl Ant {
         };
 
         if rng.gen_bool(0.20) {
-            child.mutate(&mut rng);
+            child.brain.mutate(&mut rng);
         }
 
         child
@@ -188,7 +195,7 @@ impl Ant {
         };
 
         if rng.gen_bool(0.05) {
-            child.mutate(&mut rng);
+            child.brain.mutate(&mut rng);
         }
 
         child
@@ -207,7 +214,10 @@ impl Ant {
     pub fn get_brain_copy(&self) -> Brain {
         self.brain.clone()
     }
-    fn mutate(&mut self, rng: &mut impl Rng) {
-        self.brain.mutate(rng);
+    
+    pub fn force_mutate(&mut self) {
+        let mut rng = rand::thread_rng();
+        self.brain.mutate(&mut rng);
+        self.brain.mutate(&mut rng);
     }
 }

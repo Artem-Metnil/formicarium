@@ -6,9 +6,9 @@ mod render;
 mod gui;
 
 use macroquad::prelude::*;
-use crate::gui::Gui;
+use crate::gui::{Gui, MouseAction};
 use crate::render::{render_field};
-use crate::simulation::{SimulationWorker};
+use crate::simulation::{Command, SimulationWorker};
 
 pub const DEFAULT_INTERVAL: u32 = 10;
 const WINDOW_WIDTH: i32 = 1280;
@@ -52,9 +52,27 @@ async fn main() {
                 let gx = (mx / FIELD_OBJECT_SIZE) as usize;
                 let gy = (my / FIELD_OBJECT_SIZE) as usize;
 
-                gui.selected_ant = snapshot.ants.iter()
-                    .find(|a| a.x == gx && a.y == gy)
-                    .cloned();
+                match gui.mouse_action {
+                    MouseAction::Select => {
+                        gui.selected_ant = snapshot.ants.iter()
+                            .find(|a| a.x == gx && a.y == gy)
+                            .cloned();
+                    },
+                    MouseAction::PlaceCreature => {
+                        if let Some(idx) = gui.selected_dna_index {
+                            let brain = gui.dna_library[idx].brain.clone();
+                            simulation.send_command(Command::Spawn { x: gx, y: gy, brain });
+                        }
+                    },
+                    MouseAction::Remove => {
+                        simulation.send_command(Command::Remove { x: gx, y: gy });
+                    }
+                    MouseAction::ForceMutate => {
+                        simulation.send_command(Command::ForceMutate { x: gx, y: gy });
+                    }
+                }
+
+
             }
         }
         egui_macroquad::draw();

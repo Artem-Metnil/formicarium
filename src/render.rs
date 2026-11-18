@@ -58,7 +58,7 @@ pub fn render_field(snapshot: &SimulationSnapshot, options: &RenderOptions) {
             }
 
             RenderType::Energy => {
-                let e = ant.energy / MAX_ENERGY;
+                let e = 1.0 - ant.energy / MAX_ENERGY;
                 Color::new(1.0, e, 0.0, 1.0)
             }
             _ => {

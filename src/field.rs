@@ -4,7 +4,7 @@ use std::vec::Vec;
 use rand::Rng;
 use crate::ant::{Ant, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, MAX_ENERGY, IN_DETRITUS, IN_AGE, MAX_LIFE_TIME, Action, IN_X};
 use crate::graph_brain::{NUM_INPUTS, ReproductionType};
-use crate::simulation::SimulationConfig;
+use crate::simulation::{Command, SimulationConfig};
 
 pub const DIRECTIONS: [(isize, isize); 8] = [
     (0, -1), // 0: Вверх
@@ -143,6 +143,38 @@ impl Field {
                 self.kill_ant(i, corpse_ratio);
             } else {
                 i += 1
+            }
+        }
+    }
+
+    pub fn apply_command(&mut self, cmd: Command) {
+        match cmd {
+            Command::Spawn { x, y, brain} => {
+                if x < self.width && y < self.height {
+                    let idx = x + y * self.width;
+                    if let Object::Null = self.all_cells[idx] {
+                        let ant : Ant = Ant::from_brain(x, y, brain);
+                        let id = self.ants.len();
+                        self.ants.push(ant);
+                        self.all_cells[idx] = Object::Ant { id };
+                    }
+                }
+            }
+            Command::Remove { x, y} => {
+                if x < self.width && y < self.height {
+                    let idx = x + y * self.width;
+                    if let Object::Ant { id } = self.all_cells[idx] {
+                        self.kill_ant(id, 0.0);
+                    }
+                }
+            }
+            Command::ForceMutate { x, y} => {
+                if x < self.width && y < self.height {
+                    let idx = x + y * self.width;
+                    if let Object::Ant { id } = self.all_cells[idx] {
+                        self.ants[id].force_mutate();
+                    }
+                }
             }
         }
     }

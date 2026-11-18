@@ -13,6 +13,14 @@ pub struct DnaFile {
     pub brain: Brain
 }
 
+#[derive(PartialEq, Eq, Clone, Copy)]
+pub enum MouseAction {
+    Select,
+    Remove,
+    PlaceCreature,
+    ForceMutate,
+}
+
 pub struct Gui {
     pub initialized: bool,
     pub is_stopped: bool,
@@ -28,9 +36,9 @@ pub struct Gui {
     sample_step: u64,
 
     pub selected_ant: Option<Ant>,
-
-    show_dna_library: bool,
     pub dna_library: Vec<DnaFile>,
+    pub selected_dna_index: Option<usize>,
+    pub mouse_action: MouseAction,
 }
 
 impl Default for Gui {
@@ -49,9 +57,9 @@ impl Default for Gui {
             last_sampled_tick: 0,
             sample_step: 50,
             selected_ant: None,
-
-            show_dna_library: false,
             dna_library: load_dna_files(),
+            selected_dna_index: None,
+            mouse_action: MouseAction::Select,
         }
     }
 }
@@ -95,6 +103,33 @@ impl Gui {
                     ui.radio_value(&mut self.render_options.mode, RenderType::Predators, "Predators");
                     ui.radio_value(&mut self.render_options.mode, RenderType::Energy, "Energy");
                     ui.radio_value(&mut self.render_options.mode, RenderType::Reproduction, "Reproduction");
+                });
+
+                ui.group(|ui| {
+                   ui.set_width(ui.available_width());
+                    ui.label("DNA Library");
+
+                    egui::ScrollArea::vertical().max_height(150.0).show(ui, |ui| {
+                        if self.dna_library.is_empty() {
+                            ui.label("No DNA found");
+                        } else {
+                            for (i, dna) in self.dna_library.iter().enumerate() {
+                                let is_selected = self.selected_dna_index == Some(i);
+                                if ui.selectable_label(is_selected, &dna.name).clicked() {
+                                    self.selected_dna_index = Some(i);
+                                }
+                            }
+                        }
+                    })
+                });
+
+                ui.group(|ui| {
+                    ui.set_width(ui.available_width());
+                    ui.label("Mouse function");
+                    ui.radio_value(&mut self.mouse_action, MouseAction::Select, "Select");
+                    ui.radio_value(&mut self.mouse_action, MouseAction::Remove, "Remove");
+                    ui.radio_value(&mut self.mouse_action, MouseAction::PlaceCreature, "Place creature from file");
+                    ui.radio_value(&mut self.mouse_action, MouseAction::ForceMutate, "Force mutate");
                 });
 
                 ui.group(|ui| {
