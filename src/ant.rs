@@ -1,5 +1,5 @@
 use rand::Rng;
-use crate::graph_brain::{Brain, NUM_INPUTS, NUM_OUTPUTS};
+use crate::graph_brain::{Brain, NUM_INPUTS, NUM_OUTPUTS, ReproductionType};
 
 pub const MAX_LIFE_TIME: u32 = 500;
 pub const MAX_ENERGY: f32 = 250.0;
@@ -63,12 +63,6 @@ impl Action {
     }
 }
 
-#[derive(PartialEq, Clone, Copy)]
-pub enum ReproductionType {
-    Budding,
-    Mitosis,
-}
-
 #[derive(Clone)]
 pub struct Ant {
     pub x: usize,
@@ -82,7 +76,6 @@ pub struct Ant {
     pub score_predators: f32,
     pub score_herbivorous: f32,
 
-    pub reproduction_type: ReproductionType,
     brain: Brain
 }
 
@@ -100,7 +93,6 @@ impl Ant {
             score_photosynthesis: 0.0,
             score_predators: 0.0,
             score_herbivorous: 0.0,
-            reproduction_type: ReproductionType::Budding,
             brain: Brain::new(&mut rng)
         }
     }
@@ -168,7 +160,6 @@ impl Ant {
             score_photosynthesis: 0.0,
             score_predators: 0.0,
             score_herbivorous: 0.0,
-            reproduction_type: self.reproduction_type,
             brain: child_brain
         };
 
@@ -193,7 +184,6 @@ impl Ant {
             score_photosynthesis: 0.0,
             score_predators: 0.0,
             score_herbivorous: 0.0,
-            reproduction_type: self.reproduction_type,
             brain: child_brain
         };
 
@@ -204,33 +194,20 @@ impl Ant {
         child
     }
 
-    pub fn get_tag(&self) -> usize { self.brain.tag }
+    pub fn get_tag(&self) -> usize {
+        self.brain.tag
+    }
     pub fn is_relative(&self, other_tag: usize) -> bool {
         let diff = self.brain.tag ^ other_tag;
         diff.count_ones() < 5
     }
-
+    pub fn get_reproduction_type(&self) -> ReproductionType {
+        self.brain.reproduction_type
+    }
     pub fn get_brain_copy(&self) -> Brain {
         self.brain.clone()
     }
-
     fn mutate(&mut self, rng: &mut impl Rng) {
-        if rng.gen_bool(0.05) {
-            self.reproduction_type = match self.reproduction_type {
-                ReproductionType::Budding => ReproductionType::Mitosis,
-                ReproductionType::Mitosis => ReproductionType::Budding,
-            };
-            let flip = rng.gen_range(10..15);
-            for _ in 0..flip {
-                self.brain.tag ^= 1usize << rng.gen_range(0..usize::BITS);
-            }
-
-        } else {
-            let n = rng.gen_range(1..7);
-            for _ in 0..n {
-                self.brain.mutate(rng);
-            }
-        }
-
+        self.brain.mutate(rng);
     }
 }

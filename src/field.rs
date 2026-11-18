@@ -2,8 +2,8 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 use std::vec::Vec;
 use rand::Rng;
-use crate::ant::{Ant, ReproductionType, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, MAX_ENERGY, IN_DETRITUS, IN_AGE, MAX_LIFE_TIME, Action, IN_X};
-use crate::graph_brain::{NUM_INPUTS};
+use crate::ant::{Ant, IN_DIRECTION, IN_ENERGY, IN_EYE, IN_EYE_RELATIVE, IN_HEIGHT, MAX_ENERGY, IN_DETRITUS, IN_AGE, MAX_LIFE_TIME, Action, IN_X};
+use crate::graph_brain::{NUM_INPUTS, ReproductionType};
 use crate::simulation::SimulationConfig;
 
 pub const DIRECTIONS: [(isize, isize); 8] = [
@@ -279,7 +279,7 @@ impl Field {
         let pos_x = self.ants[ant_index].x;
         let pos_y = self.ants[ant_index].y;
 
-        if self.ants[ant_index].reproduction_type == ReproductionType::Budding {
+        if self.ants[ant_index].get_reproduction_type() == ReproductionType::Budding {
             for &(dx, dy) in DIRECTIONS.iter() {
                 let target_x = pos_x as isize + dx;
                 let target_y = pos_y as isize + dy;
@@ -302,7 +302,7 @@ impl Field {
                     return true;
                 }
             }
-        } else if self.ants[ant_index].reproduction_type == ReproductionType::Mitosis {
+        } else if self.ants[ant_index].get_reproduction_type() == ReproductionType::Mitosis {
             let self_x = self.ants[ant_index].x;
             let self_y = self.ants[ant_index].y;
 

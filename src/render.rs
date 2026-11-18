@@ -3,8 +3,9 @@ use macroquad::prelude::draw_rectangle;
 use macroquad::shapes::draw_line;
 use macroquad::window::clear_background;
 use crate::{FIELD_OBJECT_SIZE};
-use crate::ant::{ReproductionType, MAX_ENERGY};
+use crate::ant::{MAX_ENERGY};
 use crate::field::DIRECTIONS;
+use crate::graph_brain::ReproductionType;
 use crate::simulation::SimulationSnapshot;
 
 #[derive(PartialEq, Eq)]
@@ -36,7 +37,7 @@ pub fn render_field(snapshot: &SimulationSnapshot, options: &RenderOptions) {
 
         let color: Color = match options.mode {
             RenderType::Reproduction => {
-                match ant.reproduction_type {
+                match ant.get_reproduction_type() {
                     ReproductionType::Budding => { GREEN }
                     ReproductionType::Mitosis => { BLUE }
                 }

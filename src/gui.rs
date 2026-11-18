@@ -3,10 +3,15 @@ use egui_macroquad::egui;
 use egui_macroquad::egui::Context;
 use egui_plot::{Line, Plot, PlotPoints};
 use crate::ant::Ant;
+use crate::graph_brain::Brain;
 use crate::GUI_WINDOW_WIDTH;
 use crate::render::{RenderOptions, RenderType};
 use crate::simulation::{SimulationSnapshot, SimulationWorker};
 
+pub struct DnaFile {
+    pub name: String,
+    pub brain: Brain
+}
 
 pub struct Gui {
     pub initialized: bool,
@@ -22,7 +27,10 @@ pub struct Gui {
     last_sampled_tick: u64,
     sample_step: u64,
 
-    pub selected_ant: Option<Ant>
+    pub selected_ant: Option<Ant>,
+
+    show_dna_library: bool,
+    pub dna_library: Vec<DnaFile>,
 }
 
 impl Default for Gui {
@@ -40,7 +48,10 @@ impl Default for Gui {
             history: VecDeque::with_capacity(2048),
             last_sampled_tick: 0,
             sample_step: 50,
-            selected_ant: None
+            selected_ant: None,
+
+            show_dna_library: false,
+            dna_library: load_dna_files(),
         }
     }
 }
@@ -97,7 +108,7 @@ impl Gui {
             });
 
         self.draw_population_chart(ctx, snapshot);
-        self.draw_ant_inspector(ctx, simulation);
+        self.draw_ant_inspector(ctx);
     }
 
     fn draw_population_chart(&mut self, ctx: &Context, snapshot: &SimulationSnapshot) {
@@ -110,7 +121,7 @@ impl Gui {
             }
 
             if self.history.is_empty() || snapshot.ticks.saturating_sub(self.last_sampled_tick) >= self.sample_step {
-                if self.history.len() == self.history.capacity() {
+                if self.history.len() >= 2048 {
                     self.history.pop_front();
                 }
                 self.history.push_back([snapshot.ticks as f64, snapshot.object_count() as f64]);
@@ -186,7 +197,7 @@ impl Gui {
         });
     }
 
-    fn draw_ant_inspector(&mut self, ctx: &Context, simulation: &mut SimulationWorker) {
+    fn draw_ant_inspector(&mut self, ctx: &Context) {
         if let Some(ant) = &self.selected_ant {
             let mut is_open = true;
 
@@ -212,8 +223,15 @@ impl Gui {
                         if columns[0].button("Show brain").clicked() {
 
                         }
-                        if columns[1].button("Save as").clicked() {
-
+                        if columns[1].button("Save DNA").clicked() {
+                            std::fs::create_dir_all("saved_dna").ok();
+                            let filename = format!("saved_dna/dna_{:X}.dna", ant.get_tag());
+                            let bytes = ant.get_brain_copy().to_bytes();
+                            let result = std::fs::write(filename, bytes);
+                            match result {
+                                Ok(_) => println!("Saved dna"),
+                                Err(_) => println!("Failed to save dna"),
+                            }
                         }
                     })
 
@@ -224,4 +242,31 @@ impl Gui {
             }
         }
     }
+}
+
+fn load_dna_files() -> Vec<DnaFile> {
+    let mut files = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir("saved_dna") {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|s| s.to_str()) == Some("dna") {
+                if let Ok(bytes) = std::fs::read(&path) {
+                    match Brain::from_bytes(&bytes) {
+                        Ok(brain) => {
+                            let name = path.file_name()
+                                .unwrap_or_default()
+                                .to_string_lossy()
+                                .to_string();
+                            files.push(DnaFile { name, brain });
+                            println!("Loaded dna: {:#?}", &path);
+                        }
+                        Err(e) => println!("Failed to parse DNA file {:#?}: {}", path, e)
+                    }
+                }
+            }
+        }
+    }
+
+    files
 }
