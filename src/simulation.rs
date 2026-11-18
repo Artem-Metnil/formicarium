@@ -76,6 +76,16 @@ impl SimulationWorker {
                 steps += 1;
                 ticks_in_current_second += 1;
 
+                if field.finished() {
+                    if let Ok(mut state) = thread_snapshot.lock() {
+                        state.ticks = steps;
+                        state.actual_ticks_per_second = 0;
+                        state.season = field.get_season();
+                        state.ants = field.get_ants().to_vec();
+                    }
+                    break;
+                }
+
                 if last_sec_time.elapsed() > Duration::from_secs(1) {
                     actual_tps = ticks_in_current_second;
                     ticks_in_current_second = 0;

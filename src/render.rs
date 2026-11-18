@@ -1,8 +1,10 @@
 use macroquad::color::{Color, BLUE, GREEN, WHITE, SKYBLUE, RED, GRAY};
 use macroquad::prelude::draw_rectangle;
+use macroquad::shapes::draw_line;
 use macroquad::window::clear_background;
-use crate::{FIELD_OBJECT_SIZE, FIELD_WIDTH};
+use crate::{FIELD_OBJECT_SIZE};
 use crate::ant::{ReproductionType, MAX_ENERGY};
+use crate::field::DIRECTIONS;
 use crate::simulation::SimulationSnapshot;
 
 #[derive(PartialEq, Eq)]
@@ -72,5 +74,13 @@ pub fn render_field(snapshot: &SimulationSnapshot, options: &RenderOptions) {
                        FIELD_OBJECT_SIZE - 2.0,
                        FIELD_OBJECT_SIZE - 2.0,
                        color);
+        if options.mode == RenderType::Natural {
+            let center_x = pos_x + FIELD_OBJECT_SIZE / 2.0;
+            let center_y = pos_y + FIELD_OBJECT_SIZE / 2.0;
+            let (dx, dy) = DIRECTIONS[ant.direction as usize];
+            let end_x = center_x + dx as f32 * (FIELD_OBJECT_SIZE / 2.0);
+            let end_y = center_y + dy as f32 * (FIELD_OBJECT_SIZE / 2.0);
+            draw_line(center_x,center_y, end_x, end_y, 1.0, GRAY);
+        }
     }
 }

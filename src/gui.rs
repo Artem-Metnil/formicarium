@@ -1,4 +1,8 @@
+use std::collections::VecDeque;
 use egui_macroquad::egui;
+use egui_macroquad::egui::Context;
+use egui_plot::{Line, Plot, PlotPoints};
+use crate::ant::Ant;
 use crate::GUI_WINDOW_WIDTH;
 use crate::render::{RenderOptions, RenderType};
 use crate::simulation::{SimulationSnapshot, SimulationWorker};
@@ -11,7 +15,14 @@ pub struct Gui {
     pub light_energy: f32,
     pub ticks_per_season: u32,
     pub corpse_ratio: f32,
-    pub render_options: RenderOptions
+    pub render_options: RenderOptions,
+
+    show_chart: bool,
+    history: VecDeque<[f64; 2]>,
+    last_sampled_tick: u64,
+    sample_step: u64,
+
+    pub selected_ant: Option<Ant>
 }
 
 impl Default for Gui {
@@ -23,7 +34,13 @@ impl Default for Gui {
             light_energy: 2.0,
             ticks_per_season: 0,
             corpse_ratio: 0.5,
-            render_options: RenderOptions::default()
+            render_options: RenderOptions::default(),
+
+            show_chart: false,
+            history: VecDeque::with_capacity(2048),
+            last_sampled_tick: 0,
+            sample_step: 50,
+            selected_ant: None
         }
     }
 }
@@ -68,7 +85,67 @@ impl Gui {
                     ui.radio_value(&mut self.render_options.mode, RenderType::Energy, "Energy");
                     ui.radio_value(&mut self.render_options.mode, RenderType::Reproduction, "Reproduction");
                 });
+
+                ui.group(|ui| {
+                    let size = ui.available_width();
+                   ui.set_width(size);
+                    ui.label("Additional Windows");
+                    if ui.add_sized([size / 2.0, 0.0], egui::Button::new("Chart")).clicked() {
+                        self.show_chart = true;
+                    }
+                });
             });
+
+        self.draw_population_chart(ctx, snapshot);
+        self.draw_ant_inspector(ctx, simulation);
+    }
+
+    fn draw_population_chart(&mut self, ctx: &Context, snapshot: &SimulationSnapshot) {
+        if self.show_chart {
+            let mut is_open = self.show_chart;
+
+            if snapshot.ticks < self.last_sampled_tick {
+                self.history.clear();
+                self.last_sampled_tick = snapshot.ticks;
+            }
+
+            if self.history.is_empty() || snapshot.ticks.saturating_sub(self.last_sampled_tick) >= self.sample_step {
+                if self.history.len() == self.history.capacity() {
+                    self.history.pop_front();
+                }
+                self.history.push_back([snapshot.ticks as f64, snapshot.object_count() as f64]);
+                self.last_sampled_tick = snapshot.ticks;
+            }
+
+            egui::Window::new("Population chart")
+                .open(&mut is_open)
+                .default_width(720.0)
+                .default_height(480.0)
+                .resizable(true)
+                .show(ctx, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label("Precision: ");
+                        ui.add(egui::Slider::new(&mut self.sample_step, 1..=1000)
+                            .logarithmic(true)
+                            .suffix(" ticks"));
+                    });
+
+                    ui.separator();
+                    let points: PlotPoints = self.history.iter().copied().collect();
+
+                    Plot::new("pop_plot")
+                        .legend(egui_plot::Legend::default())
+                        .show(ui, |plot_ui| {
+                            plot_ui.line(Line::new(points).name("Total Ants"))
+                        });
+                });
+
+            if !is_open {
+                self.show_chart = false;
+                self.history.clear();
+                self.last_sampled_tick = 0;
+            }
+        }
     }
 
     fn draw_control_window(&mut self, ui: &mut egui::Ui, simulation: &mut SimulationWorker) {
@@ -107,5 +184,44 @@ impl Gui {
                 simulation.set_corpse_energy_ratio(self.corpse_ratio);
             }
         });
+    }
+
+    fn draw_ant_inspector(&mut self, ctx: &Context, simulation: &mut SimulationWorker) {
+        if let Some(ant) = &self.selected_ant {
+            let mut is_open = true;
+
+            egui::Window::new("Ant Inspector")
+                .open(&mut is_open)
+                .default_pos([20.0, 20.0])
+                .default_width(200.0)
+                .show(ctx, |ui| {
+                    ui.label(format!("Pos: ({}, {})", ant.x, ant.y));
+                    ui.label(format!("Energy: {:.1}", ant.energy));
+                    ui.label(format!("Age: {}", ant.age));
+                    ui.label(format!("Tag: {:#X}", ant.get_tag()));
+                    ui.label(format!("Metabolic: {}", ant.get_brain_copy().metabolic_cost()));
+
+                    ui.separator();
+                    ui.label("=== Diet Scores ===");
+                    ui.label(format!("Photo: {:.1}", ant.score_photosynthesis));
+                    ui.label(format!("Pred:  {:.1}", ant.score_predators));
+                    ui.label(format!("Herb:  {:.1}", ant.score_herbivorous));
+
+                    ui.separator();
+                    ui.columns(2, |columns| {
+                        if columns[0].button("Show brain").clicked() {
+
+                        }
+                        if columns[1].button("Save as").clicked() {
+
+                        }
+                    })
+
+                });
+
+            if !is_open {
+                self.selected_ant = None
+            }
+        }
     }
 }

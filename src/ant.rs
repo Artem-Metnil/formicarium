@@ -210,6 +210,10 @@ impl Ant {
         diff.count_ones() < 5
     }
 
+    pub fn get_brain_copy(&self) -> Brain {
+        self.brain.clone()
+    }
+
     fn mutate(&mut self, rng: &mut impl Rng) {
         if rng.gen_bool(0.05) {
             self.reproduction_type = match self.reproduction_type {

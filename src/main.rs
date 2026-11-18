@@ -38,10 +38,25 @@ async fn main() {
 
     loop {
         let snapshot = simulation.get_snapshot();
+        let mut ui_wants_pointer = false;
+
         render_field(&snapshot, &gui.render_options);
         egui_macroquad::ui(|ctx| {
+            ui_wants_pointer = ctx.wants_pointer_input();
             gui.draw_gui(&ctx, &snapshot, &mut simulation);
         });
+        if !ui_wants_pointer && is_mouse_button_pressed(MouseButton::Left) {
+            let (mx, my) = mouse_position();
+
+            if mx < (WINDOW_WIDTH as f32 - GUI_WINDOW_WIDTH) {
+                let gx = (mx / FIELD_OBJECT_SIZE) as usize;
+                let gy = (my / FIELD_OBJECT_SIZE) as usize;
+
+                gui.selected_ant = snapshot.ants.iter()
+                    .find(|a| a.x == gx && a.y == gy)
+                    .cloned();
+            }
+        }
         egui_macroquad::draw();
         next_frame().await;
     }

@@ -147,6 +147,9 @@ impl Field {
         }
     }
 
+    pub fn finished(&self) -> bool {
+        self.ants.len() <= 0
+    }
     pub fn get_ants(&self) -> &Vec<Ant> {
         &self.ants
     }
