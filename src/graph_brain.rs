@@ -1,3 +1,4 @@
+use macroquad::math::u64;
 use rand::Rng;
 
 pub const NUM_INPUTS: u16 = 8;
@@ -48,7 +49,7 @@ impl SensorMask {
 
 #[derive(Clone)]
 pub struct Brain {
-    pub tag: usize,
+    pub tag: u64,
     pub reproduction_type: ReproductionType,
     pub sensors: SensorMask,
 
@@ -189,7 +190,7 @@ impl Brain {
             Ok(f32::from_le_bytes(arr))
         };
 
-        let tag = read_u64(&mut pos)? as usize;
+        let tag = read_u64(&mut pos)?;
 
         let reproduction_type = match read_u8(&mut pos)? {
             0 => ReproductionType::Budding,
@@ -309,7 +310,7 @@ impl Brain {
             };
             let flip = rng.gen_range(10..15);
             for _ in 0..flip {
-                self.tag ^= 1usize << rng.gen_range(0..usize::BITS);
+                self.tag ^= 1u64 << rng.gen_range(0..u64::BITS);
             }
             return;
         }
@@ -335,7 +336,7 @@ impl Brain {
                 return;
             }
 
-            self.tag ^= 1usize << rng.gen_range(0..usize::BITS);
+            self.tag ^= 1u64 << rng.gen_range(0..u64::BITS);
 
             if roll < 0.85 {
                 let n = self.bias.len() as u16;

@@ -201,10 +201,10 @@ impl Ant {
         child
     }
 
-    pub fn get_tag(&self) -> usize {
+    pub fn get_tag(&self) -> u64 {
         self.brain.tag
     }
-    pub fn is_relative(&self, other_tag: usize) -> bool {
+    pub fn is_relative(&self, other_tag: u64) -> bool {
         let diff = self.brain.tag ^ other_tag;
         diff.count_ones() < 5
     }
@@ -214,7 +214,7 @@ impl Ant {
     pub fn get_brain_copy(&self) -> Brain {
         self.brain.clone()
     }
-    
+
     pub fn force_mutate(&mut self) {
         let mut rng = rand::thread_rng();
         self.brain.mutate(&mut rng);
