@@ -254,11 +254,8 @@ impl Gui {
                     ui.label(format!("Herb:  {:.1}", ant.score_herbivorous));
 
                     ui.separator();
-                    ui.columns(2, |columns| {
-                        if columns[0].button("Show brain").clicked() {
-
-                        }
-                        if columns[1].button("Save DNA").clicked() {
+                    ui.columns(0, |columns| {
+                        if columns[0].button("Save DNA").clicked() {
                             std::fs::create_dir_all("saved_dna").ok();
                             let filename = format!("saved_dna/dna_{:X}.dna", ant.get_tag());
                             let bytes = ant.get_brain_copy().to_bytes();
